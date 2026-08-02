@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
-import html2pdf from 'html2pdf.js'
-import * as XLSX from 'xlsx'
-
-// Helper for generating IDs
-const generateId = () => Math.random().toString(36).substr(2, 6).toUpperCase();
+import CatalogModule from './CatalogModule'
+import PurchaseModule from './PurchaseModule'
+import BillingModule from './BillingModule'
+import CatalogGrid from './CatalogGrid'
+import { Icon, generateId } from './utils'
 
 const compressImage = (dataUrl, maxWidth = 600, quality = 0.6) => {
   return new Promise((resolve) => {
@@ -56,22 +56,7 @@ const calculateBoxTotals = (box, allItems) => {
   return { cost: tCost, sale: tSale, profit: tSale - tCost };
 };
 
-const Icon = ({ name }) => {
-  const paths = {
-    Box: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4",
-    Grid: "M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z",
-    FileText: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
-    Trash: "M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16",
-    Download: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4",
-    Plus: "M12 4v16m8-8H4",
-    ArrowLeft: "M10 19l-7-7m0 0l7-7m-7 7h18"
-  };
-  return (
-    <svg className="w-5 h-5 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={paths[name]} />
-    </svg>
-  );
-};
+// Icon moved to utils.jsx
 
 const LoginGate = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(() => localStorage.getItem('aaham_auth_v2') === 'true');
@@ -123,6 +108,7 @@ export default function Admin() {
   const [items, setItems] = useState([])
   const [giftBoxes, setGiftBoxes] = useState([])
   const [activeModule, setActiveModule] = useState('inventory')
+  const [logoData, setLogoData] = useState(() => localStorage.getItem('jwl_logo') || null)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -143,6 +129,9 @@ export default function Admin() {
             <div className="h-6 w-px bg-gray-600"></div>
             <div className="flex gap-2">
               <button onClick={() => setActiveModule('inventory')} className={`px-4 py-2 rounded text-sm uppercase tracking-wider font-medium transition ${activeModule === 'inventory' ? 'bg-gold-500 text-charcoal' : 'text-gray-300 hover:text-white'}`}>Inventory</button>
+              <button onClick={() => setActiveModule('catalog')} className={`px-4 py-2 rounded text-sm uppercase tracking-wider font-medium transition ${activeModule === 'catalog' ? 'bg-gold-500 text-charcoal' : 'text-gray-300 hover:text-white'}`}>Catalog</button>
+              <button onClick={() => setActiveModule('purchase')} className={`px-4 py-2 rounded text-sm uppercase tracking-wider font-medium transition ${activeModule === 'purchase' ? 'bg-gold-500 text-charcoal' : 'text-gray-300 hover:text-white'}`}>Purchases</button>
+              <button onClick={() => setActiveModule('billing')} className={`px-4 py-2 rounded text-sm uppercase tracking-wider font-medium transition ${activeModule === 'billing' ? 'bg-gold-500 text-charcoal' : 'text-gray-300 hover:text-white'}`}>Billing</button>
             </div>
           </div>
           <div className="text-xs uppercase tracking-widest text-gray-400">Admin Panel v2 (Supabase)</div>
@@ -150,6 +139,9 @@ export default function Admin() {
 
         <div className="p-8">
           {activeModule === 'inventory' && <InventoryModule items={items} setItems={setItems} giftBoxes={giftBoxes} setGiftBoxes={setGiftBoxes} />}
+          {activeModule === 'catalog' && <CatalogModule items={items} giftBoxes={giftBoxes} />}
+          {activeModule === 'purchase' && <PurchaseModule />}
+          {activeModule === 'billing' && <BillingModule logoData={logoData} setLogoData={setLogoData} />}
         </div>
       </div>
     </LoginGate>
@@ -204,7 +196,12 @@ function InventoryModule({ items, setItems, giftBoxes, setGiftBoxes }) {
       
       <div className="flex gap-4 mb-6 border-b border-gray-200">
         <button onClick={() => setTab('items')} className={`pb-3 px-4 text-sm font-medium tracking-wider uppercase transition border-b-2 ${tab === 'items' ? 'border-gold-500 text-charcoal' : 'border-transparent text-gray-400'}`}>Jewelry Items</button>
+        <button onClick={() => setTab('visual')} className={`pb-3 px-4 text-sm font-medium tracking-wider uppercase transition border-b-2 ${tab === 'visual' ? 'border-gold-500 text-charcoal' : 'border-transparent text-gray-400'}`}>Visual Inventory</button>
       </div>
+
+      {tab === 'visual' && (
+        <CatalogGrid items={items} giftBoxes={giftBoxes} mode="internal" />
+      )}
 
       {tab === 'items' && (
         <div className="space-y-8">

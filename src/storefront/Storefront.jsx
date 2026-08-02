@@ -290,6 +290,53 @@ export default function Storefront() {
         </section>
       </main>
 
+      <section className="our-story-section">
+        <div className="our-story-content">
+          <div className="contact-eyebrow">OUR STORY</div>
+          <div className="about-text">
+            Aaham Collection began with a simple idea — jewelry and gifts that feel personal. We offer fine
+            jewelry, customized gift boxes, and jewelry boxes, each one handpicked and thoughtfully packaged,
+            made to be given, not just bought.
+          </div>
+          <div className="follow-pill">Follow us to stay tuned</div>
+        </div>
+      </section>
+
+      <section className="get-in-touch-section" id="contact">
+        <div className="contact-eyebrow">GET IN TOUCH</div>
+        <div className="social-icons-row">
+          <a href="https://instagram.com" className="plain-icon-link" aria-label="Instagram">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <rect x="2" y="2" width="20" height="20" rx="5" ry="5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"></rect>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"></path>
+              <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"></line>
+            </svg>
+          </a>
+          <a href="https://facebook.com" className="plain-icon-link" aria-label="Facebook">
+            <svg fill="currentColor" viewBox="0 0 24 24">
+              <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z"></path>
+            </svg>
+          </a>
+          <a href="tel:03260627568" className="plain-icon-link" aria-label="Call">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path>
+            </svg>
+          </a>
+          <a href="mailto:aahamcollection@gmail.com" className="plain-icon-link" aria-label="Email">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+            </svg>
+          </a>
+        </div>
+      </section>
+
+      <footer>
+        <div className="footer-content">
+          <h3>AAHAM COLLECTION</h3>
+          <p>Fine Jewelry</p>
+        </div>
+      </footer>
+
       {/* Product Modal */}
       {selectedProduct && (
         <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setSelectedProduct(null) }}>
