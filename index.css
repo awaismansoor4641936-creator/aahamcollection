@@ -1149,3 +1149,48 @@ footer p {
     scroll-snap-align: start;
 }
 
+.slider-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5rem;
+    margin-top: 1rem;
+}
+
+.slider-arrow {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--charcoal);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.3s ease;
+}
+
+.slider-arrow:hover {
+    color: var(--gold-accent);
+}
+
+.slider-arrow svg {
+    width: 24px;
+    height: 24px;
+}
+
+.slider-progress-bar {
+    width: 200px;
+    height: 2px;
+    background-color: #E5E7EB; /* gray-200 */
+    position: relative;
+    border-radius: 2px;
+}
+
+.slider-progress-thumb {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    width: 40px; /* fixed width for thumb */
+    background-color: var(--charcoal);
+    border-radius: 2px;
+    transition: left 0.1s ease-out;
+}
