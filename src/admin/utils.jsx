@@ -3,26 +3,30 @@ import React from 'react';
 export const generateId = () => Math.random().toString(36).substr(2, 6).toUpperCase();
 
 export const calculateBoxTotals = (box, allItems) => {
-  const eCost = box.emptyBoxCost || 0;
+  const eCost = box.emptyBoxCost || box.empty_box_cost || 0;
   let itemsCost = 0;
   let itemsSale = 0;
   
-  (box.linked_items || []).forEach(l => {
+  const linkedItems = box.linkedItems || box.linked_items || [];
+  
+  linkedItems.forEach(l => {
     const lType = l.type || 'inventory';
     if (lType === 'custom') {
-      itemsCost += (l.costPrice || 0) * l.qty;
-      itemsSale += (l.salePrice || 0) * l.qty;
+      itemsCost += (l.costPrice || l.cost_price || 0) * l.qty;
+      itemsSale += (l.salePrice || l.sale_price || 0) * l.qty;
     } else {
-      const i = allItems.find(x => x.id === l.itemId);
+      const i = allItems.find(x => x.id === l.itemId || x.id === l.item_id);
       if (i) {
-        itemsCost += i.costPrice * l.qty;
-        itemsSale += i.salePrice * l.qty;
+        itemsCost += (i.costPrice || i.cost_price || 0) * l.qty;
+        itemsSale += (i.salePrice || i.sale_price || 0) * l.qty;
       }
     }
   });
 
   const tCost = eCost + itemsCost;
-  const tSale = box.emptyBoxSale !== undefined ? (box.emptyBoxSale + itemsSale) : (box.salePrice || 0);
+  const eSale = box.emptyBoxSale !== undefined ? box.emptyBoxSale : box.empty_box_sale;
+  const bSale = box.salePrice !== undefined ? box.salePrice : box.sale_price;
+  const tSale = eSale !== undefined ? (eSale + itemsSale) : (bSale || 0);
   
   return { cost: tCost, sale: tSale, profit: tSale - tCost };
 };
