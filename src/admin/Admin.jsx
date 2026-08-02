@@ -4,6 +4,8 @@ import CatalogModule from './CatalogModule'
 import PurchaseModule from './PurchaseModule'
 import BillingModule from './BillingModule'
 import CatalogGrid from './CatalogGrid'
+import GiftBoxBuilder from './GiftBoxBuilder'
+import WebcamCapture from './WebcamCapture'
 import { Icon, generateId } from './utils'
 
 const compressImage = (dataUrl, maxWidth = 600, quality = 0.6) => {
@@ -154,30 +156,71 @@ function InventoryModule({ items, setItems, giftBoxes, setGiftBoxes }) {
   // Basic states for adding item
   const [stickyType, setStickyType] = useState('')
   const [stickyCategory, setStickyCategory] = useState('')
-  
+  const [itemPhotos, setItemPhotos] = useState([])
+  const [showWebcam, setShowWebcam] = useState(false)
+  const galleryInputRef = useRef()
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setItemPhotos(prev => [...prev, reader.result]);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemovePhoto = (index) => setItemPhotos(prev => prev.filter((_, i) => i !== index));
+  const handleSetCoverPhoto = (index) => {
+    if (index === 0) return;
+    setItemPhotos(prev => {
+      const newArr = [...prev];
+      const [moved] = newArr.splice(index, 1);
+      newArr.unshift(moved);
+      return newArr;
+    });
+  };
+
+  const triggerCamera = () => setShowWebcam(true);
+  const triggerGallery = () => galleryInputRef.current && galleryInputRef.current.click();
+
   const handleAddItem = async (e) => {
     e.preventDefault();
-    const formData = new FormData(e.target);
-    const newItem = {
-      id: `ITM-${generateId()}`,
-      name: `${stickyType} - ${stickyCategory}`,
-      type: stickyType,
-      category: stickyCategory,
-      pieces: parseInt(formData.get('pieces'), 10) || 1,
-      costPrice: parseFloat(formData.get('costPrice')),
-      originalPrice: parseFloat(formData.get('originalPrice')) || parseFloat(formData.get('salePrice')),
-      salePrice: parseFloat(formData.get('salePrice')),
-      description: formData.get('description') || '',
-      image: null,
-      photos: [],
-    };
-    
-    const { data, error } = await supabase.from('products').insert([newItem]).select()
-    if (!error && data) {
-      setItems(prev => [...prev, data[0]])
-      e.target.reset()
-    } else {
-      alert("Error adding item to Supabase.")
+    const btn = e.nativeEvent.submitter;
+    const originalText = btn?.innerText || "Add Item";
+    if(btn) { btn.innerText = "SAVING..."; btn.disabled = true; }
+
+    try {
+      const formData = new FormData(e.target);
+      const compressedPhotos = await Promise.all(itemPhotos.map(p => compressImage(p)));
+
+      const newItem = {
+        id: `ITM-${generateId()}`,
+        name: `${stickyType} - ${stickyCategory}`,
+        type: stickyType,
+        category: stickyCategory,
+        pieces: parseInt(formData.get('pieces'), 10) || 1,
+        costPrice: parseFloat(formData.get('costPrice')),
+        originalPrice: parseFloat(formData.get('originalPrice')) || parseFloat(formData.get('salePrice')),
+        salePrice: parseFloat(formData.get('salePrice')),
+        description: formData.get('description') || '',
+        image: compressedPhotos.length > 0 ? compressedPhotos[0] : null,
+        photos: compressedPhotos,
+      };
+      
+      const { data, error } = await supabase.from('products').insert([newItem]).select()
+      if (!error && data) {
+        setItems(prev => [...prev, data[0]])
+        e.target.reset()
+        setItemPhotos([])
+        if(galleryInputRef.current) galleryInputRef.current.value = ""
+      } else {
+        alert("Error adding item to Supabase.")
+      }
+    } catch(err) {
+      console.error(err);
+      alert("Failed to save item.");
+    } finally {
+      if(btn) { btn.innerText = originalText; btn.disabled = false; }
     }
   }
 
@@ -196,8 +239,13 @@ function InventoryModule({ items, setItems, giftBoxes, setGiftBoxes }) {
       
       <div className="flex gap-4 mb-6 border-b border-gray-200">
         <button onClick={() => setTab('items')} className={`pb-3 px-4 text-sm font-medium tracking-wider uppercase transition border-b-2 ${tab === 'items' ? 'border-gold-500 text-charcoal' : 'border-transparent text-gray-400'}`}>Jewelry Items</button>
+        <button onClick={() => setTab('boxes')} className={`pb-3 px-4 text-sm font-medium tracking-wider uppercase transition border-b-2 ${tab === 'boxes' ? 'border-gold-500 text-charcoal' : 'border-transparent text-gray-400'}`}>Gift Boxes</button>
         <button onClick={() => setTab('visual')} className={`pb-3 px-4 text-sm font-medium tracking-wider uppercase transition border-b-2 ${tab === 'visual' ? 'border-gold-500 text-charcoal' : 'border-transparent text-gray-400'}`}>Visual Inventory</button>
       </div>
+
+      {tab === 'boxes' && (
+        <GiftBoxBuilder items={items} giftBoxes={giftBoxes} setGiftBoxes={setGiftBoxes} />
+      )}
 
       {tab === 'visual' && (
         <CatalogGrid items={items} giftBoxes={giftBoxes} mode="internal" />
@@ -208,6 +256,31 @@ function InventoryModule({ items, setItems, giftBoxes, setGiftBoxes }) {
           <div className="bg-white p-8 rounded-xl luxury-shadow luxury-border">
             <h3 className="font-serif text-xl mb-6 text-gold-600">Add Jewelry Item</h3>
             <form onSubmit={handleAddItem} className="grid grid-cols-1 md:grid-cols-6 gap-6">
+              <div className="md:col-span-6">
+                <label className="block text-xs uppercase tracking-wider text-gray-500 mb-2">Item Photos (Multi-Upload)</label>
+                <input type="file" ref={galleryInputRef} accept="image/*" onChange={handleImageChange} className="hidden" />
+
+                {itemPhotos.length > 0 && (
+                  <div className="flex gap-2 overflow-x-auto pb-2 mb-3">
+                    {itemPhotos.map((photo, idx) => (
+                      <div key={idx} className="relative flex-shrink-0 mt-2">
+                        <img src={photo} className={`w-16 h-16 object-cover rounded border ${idx === 0 ? 'border-gold-500 shadow-md' : 'border-gray-300'}`} />
+                        {idx === 0 && <span className="absolute bottom-0 left-0 bg-gold-500 text-white text-[9px] px-1 font-bold uppercase rounded-bl">Cover</span>}
+                        <button type="button" onClick={() => handleRemovePhoto(idx)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold hover:bg-red-600 shadow-sm">&times;</button>
+                        {idx !== 0 && (
+                          <button type="button" onClick={() => handleSetCoverPhoto(idx)} className="absolute inset-0 bg-black/50 text-white text-[10px] uppercase font-bold opacity-0 hover:opacity-100 transition rounded flex items-center justify-center">Set Cover</button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex gap-2 mt-2">
+                  <button type="button" onClick={triggerCamera} className="bg-charcoal text-white text-xs py-2 px-3 rounded hover:bg-black transition uppercase font-medium flex items-center gap-1.5 border border-charcoal">Take Photo</button>
+                  <button type="button" onClick={triggerGallery} className="bg-white text-charcoal text-xs py-2 px-3 rounded hover:bg-gray-50 transition uppercase font-medium flex items-center gap-1.5 border border-gray-300">From Gallery</button>
+                </div>
+              </div>
+
               <div className="md:col-span-2">
                 <label className="block text-xs uppercase tracking-wider text-gray-500 mb-2">Type</label>
                 <input required value={stickyType} onChange={e=>setStickyType(e.target.value)} className="w-full border-b border-gray-300 py-2 focus:border-gold-500 outline-none" />
@@ -245,7 +318,10 @@ function InventoryModule({ items, setItems, giftBoxes, setGiftBoxes }) {
               <tbody className="divide-y divide-gray-100">
                 {items.map(item => (
                   <tr key={item.id} className="hover:bg-gray-50 transition">
-                    <td className="p-4 text-xs text-gray-400 font-mono">{item.id}</td>
+                    <td className="p-4 flex items-center gap-4">
+                      {item.image ? <img src={item.image} className="w-12 h-12 object-cover rounded-md border border-gray-200" /> : <div className="w-12 h-12 bg-gray-100 rounded-md"></div>}
+                      <span className="text-xs text-gray-400 font-mono">{item.id}</span>
+                    </td>
                     <td className="p-4"><div className="font-medium text-charcoal">{item.type || item.name}</div><div className="text-sm text-gray-500">{item.category}</div></td>
                     <td className="p-4 text-center font-medium">{item.pieces}</td>
                     <td className="p-4">
@@ -264,6 +340,16 @@ function InventoryModule({ items, setItems, giftBoxes, setGiftBoxes }) {
             </table>
           </div>
         </div>
+      )}
+
+      {showWebcam && (
+        <WebcamCapture 
+          onCapture={(dataUrl) => {
+            setItemPhotos(prev => [...prev, dataUrl]);
+            setShowWebcam(false);
+          }} 
+          onClose={() => setShowWebcam(false)} 
+        />
       )}
     </div>
   )
