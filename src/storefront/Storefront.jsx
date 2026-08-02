@@ -1,0 +1,408 @@
+import { useState, useEffect, useMemo } from 'react'
+import { supabase } from '../lib/supabase'
+
+export default function Storefront() {
+  const [products, setProducts] = useState([])
+  const [cart, setCart] = useState(() => {
+    const saved = sessionStorage.getItem('aaham_cart')
+    return saved ? JSON.parse(saved) : []
+  })
+  const [currentCategory, setCurrentCategory] = useState('All')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
+  const [hasError, setHasError] = useState(false)
+  
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isCartOpen, setIsCartOpen] = useState(false)
+  const [selectedProduct, setSelectedProduct] = useState(null)
+  const [modalQty, setModalQty] = useState(1)
+  const [modalImage, setModalImage] = useState(null)
+
+  useEffect(() => {
+    sessionStorage.setItem('aaham_cart', JSON.stringify(cart))
+  }, [cart])
+
+  useEffect(() => {
+    fetchProducts()
+  }, [])
+
+  const fetchProducts = async () => {
+    setIsLoading(true)
+    setHasError(false)
+    try {
+      const { data: itemsData, error: itemsError } = await supabase.from('products').select('*').order('created_at', { ascending: true })
+      if (itemsError) throw itemsError
+
+      const { data: boxesData, error: boxesError } = await supabase.from('gift_boxes').select('*').order('created_at', { ascending: true })
+      if (boxesError) throw boxesError
+
+      const processedGiftBoxes = (boxesData || []).map(box => {
+        let itemsSale = 0;
+        (box.linked_items || []).forEach(l => {
+          const lType = l.type || 'inventory';
+          if (lType === 'custom') {
+            itemsSale += (l.salePrice || 0) * l.qty;
+          } else {
+            const i = (itemsData || []).find(x => x.id === l.itemId);
+            if (i) {
+              itemsSale += i.salePrice * l.qty;
+            }
+          }
+        });
+        return {
+          ...box,
+          type: 'Gift Box',
+          category: 'Gift Box',
+          salePrice: (box.emptyBoxSale || 0) + itemsSale
+        };
+      });
+
+      const allProducts = [...(itemsData || []), ...processedGiftBoxes]
+      setProducts(allProducts)
+    } catch (err) {
+      console.error("Error fetching products:", err)
+      setHasError(true)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const allTypes = useMemo(() => {
+    const types = new Set(products.map(p => p.type || 'Uncategorized'))
+    return ['All', ...Array.from(types)]
+  }, [products])
+
+  const filteredProducts = useMemo(() => {
+    let filtered = products
+    if (currentCategory !== 'All') {
+      filtered = filtered.filter(p => (p.type || 'Uncategorized') === currentCategory)
+    }
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase()
+      filtered = filtered.filter(p => 
+        (p.name || '').toLowerCase().includes(q) || 
+        (p.category || '').toLowerCase().includes(q) ||
+        (p.id || '').toLowerCase().includes(q)
+      )
+    }
+    return filtered
+  }, [products, currentCategory, searchQuery])
+
+  const handleAddToCart = (product, qty) => {
+    let validPhotos = Array.isArray(product.photos) ? product.photos.filter(url => typeof url === 'string' && url.trim() !== '') : [];
+    const coverImage = validPhotos.length > 0 ? validPhotos[0] : (product.image || product.photo || '');
+
+    setCart(prev => {
+      const existing = prev.find(item => item.id === product.id)
+      if (existing) {
+        return prev.map(item => item.id === product.id ? { ...item, qty: item.qty + qty } : item)
+      }
+      return [...prev, {
+        id: product.id,
+        name: product.name,
+        price: product.salePrice,
+        image: coverImage,
+        qty: qty
+      }]
+    })
+    setSelectedProduct(null)
+    setIsCartOpen(true)
+  }
+
+  const updateCartQty = (id, delta) => {
+    setCart(prev => prev.map(item => {
+      if (item.id === id) {
+        return { ...item, qty: Math.max(1, item.qty + delta) }
+      }
+      return item
+    }))
+  }
+
+  const removeFromCart = (id) => {
+    setCart(prev => prev.filter(item => item.id !== id))
+  }
+
+  const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0)
+  const cartCount = cart.reduce((sum, item) => sum + item.qty, 0)
+
+  const getCheckoutMessage = () => {
+    let message = `AAHAM COLLECTION — Order Summary\n\n`;
+    let total = 0;
+    cart.forEach((item, index) => {
+        const lineTotal = item.price * item.qty;
+        total += lineTotal;
+        message += `${index + 1}. ${item.name} (ID: ${item.id}) — Qty: ${item.qty} — Rs. ${lineTotal.toFixed(2)}\n`;
+    });
+    message += `\nGrand Total: Rs. ${total.toFixed(2)}\n\n`;
+    if (total >= 2500) {
+        message += `Free delivery included on this order.`;
+    } else {
+        message += `Note: Delivery charges are not included in this bill and will be informed separately.`;
+    }
+    return message;
+  }
+
+  const handleWhatsAppCheckout = () => {
+    if (cart.length === 0) return;
+    const message = getCheckoutMessage();
+    const encodedMessage = encodeURIComponent(message);
+    window.open(`https://wa.me/923260627568?text=${encodedMessage}`, '_blank');
+  }
+
+  const handleEmailCheckout = () => {
+    if (cart.length === 0) return;
+    const message = getCheckoutMessage();
+    const encodedSubject = encodeURIComponent("New Order Request - Aaham Collection");
+    const encodedBody = encodeURIComponent(message);
+    window.open(`mailto:aahamcollection@gmail.com?subject=${encodedSubject}&body=${encodedBody}`, '_blank');
+  }
+
+  return (
+    <div className="relative">
+      <div className="utility-bar">
+        JEWELRY · CUSTOMIZED GIFT BOXES · SHIPPED WORLDWIDE
+      </div>
+
+      <div className="free-delivery-banner">
+        <div className="marquee-content">
+          <span>FREE DELIVERY ON ORDERS ABOVE RS. 2,500</span><span className="marquee-divider">•</span>
+          <span>Personalized orders for your loved ones, just a WhatsApp message away!</span><span className="marquee-divider">•</span>
+          <span>SAVE BIG ON ALMOST OUR ENTIRE COLLECTION—EXCLUSIVE DISCOUNTS FOR OUR FIRST 100 CUSTOMERS!</span><span className="marquee-divider">•</span>
+          <span>FREE DELIVERY ON ORDERS ABOVE RS. 2,500</span><span className="marquee-divider">•</span>
+          <span>Personalized orders for your loved ones, just a WhatsApp message away!</span><span className="marquee-divider">•</span>
+          <span>SAVE BIG ON ALMOST OUR ENTIRE COLLECTION—EXCLUSIVE DISCOUNTS FOR OUR FIRST 100 CUSTOMERS!</span><span className="marquee-divider">•</span>
+        </div>
+      </div>
+
+      <header className="navbar">
+        <div className="navbar-container">
+          <button className="hamburger-btn" aria-label="Open Menu" onClick={() => setIsMobileMenuOpen(true)}>
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+          </button>
+          <div className="brand">
+            <h1>AAHAM</h1>
+            <span>COLLECTION</span>
+          </div>
+          <div className="nav-actions">
+            <button className="cart-btn" onClick={() => setIsCartOpen(true)}>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
+              <span className="cart-count">{cartCount}</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Mobile Menu */}
+      <div className={`mobile-category-overlay ${isMobileMenuOpen ? 'open' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) setIsMobileMenuOpen(false) }}>
+        <div className="mobile-category-content">
+          <div className="mobile-category-header">
+            <h2 className="mobile-category-title">SHOP BY CATEGORIES</h2>
+            <button className="close-mobile-category-btn" aria-label="Close Menu" onClick={() => setIsMobileMenuOpen(false)}>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+          </div>
+          <div className="mobile-category-list">
+            {allTypes.map(type => (
+              <button 
+                key={type}
+                className={`nav-category-link ${currentCategory === type ? 'active' : ''}`}
+                onClick={() => {
+                  setCurrentCategory(type);
+                  setIsMobileMenuOpen(false);
+                  window.scrollTo({ top: 300, behavior: 'smooth' });
+                }}
+              >
+                {type === 'All' ? 'All Products' : type}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <main>
+        <section className="hero">
+          <div className="hero-content">
+            <h2 className="brand-title">AAHAM</h2>
+            <span className="brand-subtitle">COLLECTION</span>
+            <div className="hero-divider"></div>
+            <p className="tagline">Jewelry | Customize Gift Boxes | Bouquets</p>
+          </div>
+        </section>
+
+        <section className="search-section">
+          <div className="search-container-main">
+            <input type="text" placeholder="Search by name or product ID..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+            <svg className="search-icon-main" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+          </div>
+        </section>
+
+        <section className="products-section">
+          <div className="product-grid">
+            {isLoading && <div className="loading-state">Loading collection...</div>}
+            {hasError && <div className="loading-state">Something went wrong loading products. Please try again.</div>}
+            {!isLoading && !hasError && filteredProducts.length === 0 && <div className="loading-state">No products found.</div>}
+            {!isLoading && !hasError && filteredProducts.map((p, index) => {
+              const salePrice = p.salePrice || 0;
+              let validPhotos = Array.isArray(p.photos) ? p.photos.filter(url => typeof url === 'string' && url.trim() !== '') : [];
+              if (validPhotos.length === 0 && (p.image || p.photo)) validPhotos = [p.image || p.photo];
+
+              return (
+                <div key={p.id} className="product-card" style={{ animationDelay: `${index * 0.05}s` }} onClick={() => {
+                  setSelectedProduct(p);
+                  setModalQty(1);
+                  setModalImage(validPhotos[0] || null);
+                }}>
+                  <div className="product-image">
+                    {p.originalPrice && p.originalPrice > salePrice && (
+                      <div className="discount-badge">
+                        <span className="discount-num">{Math.round(((p.originalPrice - salePrice) / p.originalPrice) * 100)}%</span>
+                        <span className="discount-off">OFF</span>
+                      </div>
+                    )}
+                    {validPhotos.length > 1 && (
+                      <div className="photo-count-indicator">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a1 1 0 011.414 0L16 17m0 0l2.586-2.586a1 1 0 011.414 0L21 17m0 0V5a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2h14a2 2 0 002-2z"></path></svg>
+                        {validPhotos.length}
+                      </div>
+                    )}
+                    {validPhotos.length > 0 ? (
+                      <img src={validPhotos[0]} alt={p.name} loading="lazy" />
+                    ) : (
+                      <div className="no-image-placeholder">No Image</div>
+                    )}
+                  </div>
+                  <div className="product-info">
+                    <span className="product-type">{p.category || 'Jewelry'}</span>
+                    <h3 className="product-name">{p.name}</h3>
+                    {p.originalPrice && p.originalPrice > salePrice ? (
+                      <div className="price-container">
+                        <span className="price-original">Rs. {p.originalPrice.toFixed(2)}</span>
+                        <span className="product-price">Rs. {salePrice.toFixed(2)}</span>
+                      </div>
+                    ) : (
+                      <div className="product-price">Rs. {salePrice.toFixed(2)}</div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      </main>
+
+      {/* Product Modal */}
+      {selectedProduct && (
+        <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setSelectedProduct(null) }}>
+          <div className="modal-content">
+            <button className="close-modal" onClick={() => setSelectedProduct(null)}>&times;</button>
+            <div className="modal-body">
+              <div className="detail-layout">
+                <div className="detail-image-col">
+                  <div className="main-image-container">
+                    {modalImage ? <img src={modalImage} alt={selectedProduct.name} /> : <div className="no-image-placeholder">No Image</div>}
+                  </div>
+                  {Array.isArray(selectedProduct.photos) && selectedProduct.photos.length > 1 && (
+                    <div className="thumbnail-row">
+                      {selectedProduct.photos.map((src, i) => (
+                        <img 
+                          key={i} 
+                          src={src} 
+                          className={`thumbnail-img ${modalImage === src ? 'active' : ''}`} 
+                          alt="thumbnail" 
+                          onClick={() => setModalImage(src)} 
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="detail-info">
+                  <span className="product-type">{selectedProduct.type} | {selectedProduct.category}</span>
+                  <h2 className="product-name">{selectedProduct.name}</h2>
+                  {selectedProduct.originalPrice && selectedProduct.originalPrice > selectedProduct.salePrice ? (
+                    <div className="price-container" style={{ justifyContent: 'flex-start', marginBottom: '2rem' }}>
+                      <span className="price-original">Rs. {selectedProduct.originalPrice.toFixed(2)}</span>
+                      <span className="product-price">Rs. {selectedProduct.salePrice.toFixed(2)}</span>
+                    </div>
+                  ) : (
+                    <div className="product-price" style={{ marginBottom: '2rem' }}>Rs. {selectedProduct.salePrice.toFixed(2)}</div>
+                  )}
+                  <div className="detail-desc" dangerouslySetInnerHTML={{ __html: selectedProduct.description ? selectedProduct.description.replace(/\n/g, '<br>') : 'An exquisite piece from our collection.' }} />
+                  <div className="add-to-cart-container">
+                    <div className="qty-control">
+                      <button className="qty-btn" onClick={() => setModalQty(Math.max(1, modalQty - 1))}>-</button>
+                      <input type="number" className="qty-input" value={modalQty} readOnly />
+                      <button className="qty-btn" onClick={() => setModalQty(modalQty + 1)}>+</button>
+                    </div>
+                    <button className="add-btn" onClick={() => handleAddToCart(selectedProduct, modalQty)}>Add to Cart</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cart Drawer */}
+      <div className={`cart-overlay ${isCartOpen ? '' : 'hidden'}`} onClick={() => setIsCartOpen(false)}></div>
+      <div className={`cart-drawer ${isCartOpen ? '' : 'hidden'}`}>
+        <div className="cart-drawer-header">
+          <h3>Your Selection</h3>
+          <span className="cart-header-count">{cartCount} Items</span>
+          <button className="close-cart" onClick={() => setIsCartOpen(false)}>&times;</button>
+        </div>
+        <div className="cart-drawer-body">
+          {cart.length > 0 && cartTotal >= 2500 && <div className="cart-nudge success">You've unlocked free delivery! 🎉</div>}
+          {cart.length > 0 && cartTotal < 2500 && <div className="cart-nudge pending">Add Rs. {(2500 - cartTotal).toFixed(2)} more to unlock free delivery!</div>}
+          
+          {cart.length === 0 ? (
+            <div className="empty-cart">Your cart is empty.</div>
+          ) : (
+            cart.map(item => (
+              <div key={item.id}>
+                <div className="cart-item">
+                  {item.image ? <img src={item.image} className="cart-item-img" alt={item.name} /> : <div className="cart-item-img no-image"></div>}
+                  <div className="cart-item-details">
+                    <div className="cart-item-header">
+                      <div className="cart-item-title">{item.name}</div>
+                      <button className="remove-btn" onClick={() => removeFromCart(item.id)}>&times;</button>
+                    </div>
+                    <div className="cart-item-id">ID: {item.id}</div>
+                    <div className="cart-item-actions">
+                      <div className="qty-control">
+                        <button className="qty-btn" onClick={() => updateCartQty(item.id, -1)}>-</button>
+                        <input type="number" readOnly className="qty-input" value={item.qty} />
+                        <button className="qty-btn" onClick={() => updateCartQty(item.id, 1)}>+</button>
+                      </div>
+                      <div className="cart-item-price">Rs. {(item.price * item.qty).toFixed(2)}</div>
+                    </div>
+                  </div>
+                </div>
+                <hr className="cart-item-divider" />
+              </div>
+            ))
+          )}
+        </div>
+        <div className="cart-drawer-footer">
+          <div className="cart-total">
+            <span>Grand Total</span>
+            <span>Rs. {cartTotal.toFixed(2)}</span>
+          </div>
+          <div className="cart-delivery-note">
+            Delivery charges not included — informed separately.
+          </div>
+          {cart.length > 0 && (
+            <div className="checkout-actions">
+              <button className="checkout-btn whatsapp-btn" onClick={handleWhatsAppCheckout}>
+                Order via WhatsApp
+              </button>
+              <button className="checkout-btn email-btn" onClick={handleEmailCheckout}>
+                Order via Email
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+    </div>
+  )
+}
