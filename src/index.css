@@ -1128,3 +1128,24 @@ footer p {
     /* Additional mobile adjustments if needed */
 }
 
+.featured-slider-section {
+    padding: 2rem 1.5rem 6rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+.slider-container {
+    display: flex;
+    overflow-x: auto;
+    gap: 1.5rem;
+    padding-bottom: 2rem;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+}
+.slider-container::-webkit-scrollbar {
+    display: none;
+}
+.slider-item {
+    flex: 0 0 280px;
+    scroll-snap-align: start;
+}
+
