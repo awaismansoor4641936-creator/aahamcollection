@@ -1,6 +1,63 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 
+const ProductCard = ({ p, index, onClick }) => {
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const salePrice = p.salePrice || 0;
+  let validPhotos = Array.isArray(p.photos) ? p.photos.filter(url => typeof url === 'string' && url.trim() !== '') : [];
+  if (validPhotos.length === 0 && (p.image || p.photo)) validPhotos = [p.image || p.photo];
+
+  useEffect(() => {
+    if (validPhotos.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentImageIndex((prev) => (prev + 1) % validPhotos.length);
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [validPhotos.length]);
+
+  return (
+    <div className="product-card" style={{ animationDelay: `${index * 0.05}s` }} onClick={onClick}>
+      <div className="product-image">
+        {p.originalPrice && p.originalPrice > salePrice && (
+          <div className="discount-badge">
+            <span className="discount-num">{Math.round(((p.originalPrice - salePrice) / p.originalPrice) * 100)}%</span>
+            <span className="discount-off">OFF</span>
+          </div>
+        )}
+        {validPhotos.length > 1 && (
+          <div className="photo-count-indicator">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a1 1 0 011.414 0L16 17m0 0l2.586-2.586a1 1 0 011.414 0L21 17m0 0V5a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2h14a2 2 0 002-2z"></path></svg>
+            {validPhotos.length}
+          </div>
+        )}
+        {validPhotos.length > 1 ? (
+          <div className="auto-rotate-container">
+            {validPhotos.map((src, i) => (
+              <img key={i} src={src} alt={`${p.name} - ${i}`} loading="lazy" className={i === currentImageIndex ? 'active-rotate' : ''} />
+            ))}
+          </div>
+        ) : validPhotos.length === 1 ? (
+          <img src={validPhotos[0]} alt={p.name} loading="lazy" />
+        ) : (
+          <div className="no-image-placeholder">No Image</div>
+        )}
+      </div>
+      <div className="product-info">
+        <span className="product-type">{p.category || 'Jewelry'}</span>
+        <h3 className="product-name">{p.name}</h3>
+        {p.originalPrice && p.originalPrice > salePrice ? (
+          <div className="price-container">
+            <span className="price-original">Rs. {p.originalPrice.toFixed(2)}</span>
+            <span className="product-price">Rs. {salePrice.toFixed(2)}</span>
+          </div>
+        ) : (
+          <div className="product-price">Rs. {salePrice.toFixed(2)}</div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export default function Storefront() {
   const [products, setProducts] = useState([])
   const [cart, setCart] = useState(() => {
@@ -132,49 +189,21 @@ export default function Storefront() {
   const showHomeLayout = currentCategory === 'Home' && !isSearchActive;
 
   const renderProductCard = (p, index) => {
-    const salePrice = p.salePrice || 0;
     let validPhotos = Array.isArray(p.photos) ? p.photos.filter(url => typeof url === 'string' && url.trim() !== '') : [];
     if (validPhotos.length === 0 && (p.image || p.photo)) validPhotos = [p.image || p.photo];
 
     return (
-      <div key={p.id} className="product-card" style={{ animationDelay: `${index * 0.05}s` }} onClick={() => {
-        setSelectedProduct(p);
-        setModalQty(1);
-        setModalImage(validPhotos[0] || null);
-      }}>
-        <div className="product-image">
-          {p.originalPrice && p.originalPrice > salePrice && (
-            <div className="discount-badge">
-              <span className="discount-num">{Math.round(((p.originalPrice - salePrice) / p.originalPrice) * 100)}%</span>
-              <span className="discount-off">OFF</span>
-            </div>
-          )}
-          {validPhotos.length > 1 && (
-            <div className="photo-count-indicator">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a1 1 0 011.414 0L16 17m0 0l2.586-2.586a1 1 0 011.414 0L21 17m0 0V5a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2h14a2 2 0 002-2z"></path></svg>
-              {validPhotos.length}
-            </div>
-          )}
-          {validPhotos.length > 0 ? (
-            <img src={validPhotos[0]} alt={p.name} loading="lazy" />
-          ) : (
-            <div className="no-image-placeholder">No Image</div>
-          )}
-        </div>
-        <div className="product-info">
-          <span className="product-type">{p.category || 'Jewelry'}</span>
-          <h3 className="product-name">{p.name}</h3>
-          {p.originalPrice && p.originalPrice > salePrice ? (
-            <div className="price-container">
-              <span className="price-original">Rs. {p.originalPrice.toFixed(2)}</span>
-              <span className="product-price">Rs. {salePrice.toFixed(2)}</span>
-            </div>
-          ) : (
-            <div className="product-price">Rs. {salePrice.toFixed(2)}</div>
-          )}
-        </div>
-      </div>
-    )
+      <ProductCard 
+        key={p.id}
+        p={p}
+        index={index}
+        onClick={() => {
+          setSelectedProduct(p);
+          setModalQty(1);
+          setModalImage(validPhotos[0] || null);
+        }}
+      />
+    );
   }
 
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0)
@@ -294,7 +323,7 @@ export default function Storefront() {
             </section>
             
             <section className="featured-slider-section">
-              <h2 className="section-title" style={{ textAlign: 'center', marginBottom: '2rem', fontFamily: "'Playfair Display', serif", fontSize: '2.5rem' }}>Featured Products</h2>
+              <h2 className="section-title" style={{ textAlign: 'center', marginBottom: '2rem', fontFamily: "'Playfair Display', serif", fontSize: '2.5rem' }}>SHOP BY COLLECTION</h2>
               {isLoading && <div className="loading-state">Loading featured products...</div>}
               {hasError && <div className="loading-state">Something went wrong.</div>}
               {!isLoading && !hasError && (
