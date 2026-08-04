@@ -399,24 +399,26 @@ export default function Storefront() {
               {isLoading && <div className="loading-state">Loading featured products...</div>}
               {hasError && <div className="loading-state">Something went wrong.</div>}
               {!isLoading && !hasError && (
-                <div className="slider-container" ref={sliderRef} onScroll={handleScroll}>
-                  {randomProducts.map((p, index) => (
-                    <div className="slider-item" key={p.id}>
-                      {renderProductCard(p, index)}
-                    </div>
-                  ))}
-                </div>
-                <div className="slider-controls">
-                  <button className="slider-arrow left" onClick={() => scrollSlider('left')} aria-label="Scroll left">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
-                  </button>
-                  <div className="slider-progress-bar">
-                    <div className="slider-progress-thumb" style={{ left: `calc(${scrollProgress}% - ${scrollProgress * 0.5}px)` }}></div>
+                <>
+                  <div className="slider-container" ref={sliderRef} onScroll={handleScroll}>
+                    {randomProducts.map((p, index) => (
+                      <div className="slider-item" key={p.id}>
+                        {renderProductCard(p, index)}
+                      </div>
+                    ))}
                   </div>
-                  <button className="slider-arrow right" onClick={() => scrollSlider('right')} aria-label="Scroll right">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
-                  </button>
-                </div>
+                  <div className="slider-controls">
+                    <button className="slider-arrow left" onClick={() => scrollSlider('left')} aria-label="Scroll left">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
+                    </button>
+                    <div className="slider-progress-bar">
+                      <div className="slider-progress-thumb" style={{ left: `calc(${scrollProgress}% - ${scrollProgress * 0.5}px)` }}></div>
+                    </div>
+                    <button className="slider-arrow right" onClick={() => scrollSlider('right')} aria-label="Scroll right">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
+                    </button>
+                  </div>
+                </>
               )}
             </section>
           </>
