@@ -155,12 +155,23 @@ export default function Storefront() {
     const selected = [];
     const remaining = [...products];
 
+    const selectItem = (item) => {
+      if (!item) return;
+      selected.push(item);
+      const rIdx = remaining.findIndex(x => x.id === item.id);
+      if(rIdx > -1) remaining.splice(rIdx, 1);
+    };
+
     Object.keys(byType).forEach(t => {
       const items = byType[t];
-      const randomItem = items[Math.floor(Math.random() * items.length)];
-      selected.push(randomItem);
-      const rIdx = remaining.findIndex(x => x.id === randomItem.id);
-      if(rIdx > -1) remaining.splice(rIdx, 1);
+      if (t === 'Gift Box' || t === 'Gift Boxes') {
+        const shuffledBoxes = [...items].sort(() => 0.5 - Math.random());
+        if (shuffledBoxes.length > 0) selectItem(shuffledBoxes[0]);
+        if (shuffledBoxes.length > 1) selectItem(shuffledBoxes[1]);
+      } else {
+        const randomItem = items[Math.floor(Math.random() * items.length)];
+        selectItem(randomItem);
+      }
     });
 
     selected.sort(() => 0.5 - Math.random());
@@ -388,24 +399,26 @@ export default function Storefront() {
               {isLoading && <div className="loading-state">Loading featured products...</div>}
               {hasError && <div className="loading-state">Something went wrong.</div>}
               {!isLoading && !hasError && (
-                <div className="slider-container" ref={sliderRef} onScroll={handleScroll}>
-                  {randomProducts.map((p, index) => (
-                    <div className="slider-item" key={p.id}>
-                      {renderProductCard(p, index)}
-                    </div>
-                  ))}
-                </div>
-                <div className="slider-controls">
-                  <button className="slider-arrow left" onClick={() => scrollSlider('left')} aria-label="Scroll left">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
-                  </button>
-                  <div className="slider-progress-bar">
-                    <div className="slider-progress-thumb" style={{ left: `calc(${scrollProgress}% - ${scrollProgress * 0.5}px)` }}></div>
+                <>
+                  <div className="slider-container" ref={sliderRef} onScroll={handleScroll}>
+                    {randomProducts.map((p, index) => (
+                      <div className="slider-item" key={p.id}>
+                        {renderProductCard(p, index)}
+                      </div>
+                    ))}
                   </div>
-                  <button className="slider-arrow right" onClick={() => scrollSlider('right')} aria-label="Scroll right">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
-                  </button>
-                </div>
+                  <div className="slider-controls">
+                    <button className="slider-arrow left" onClick={() => scrollSlider('left')} aria-label="Scroll left">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
+                    </button>
+                    <div className="slider-progress-bar">
+                      <div className="slider-progress-thumb" style={{ left: `calc(${scrollProgress}% - ${scrollProgress * 0.5}px)` }}></div>
+                    </div>
+                    <button className="slider-arrow right" onClick={() => scrollSlider('right')} aria-label="Scroll right">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
+                    </button>
+                  </div>
+                </>
               )}
             </section>
           </>
@@ -508,6 +521,16 @@ export default function Storefront() {
                     <div className="product-price" style={{ marginBottom: '2rem' }}>Rs. {selectedProduct.salePrice.toFixed(2)}</div>
                   )}
                   <div className="detail-desc" dangerouslySetInnerHTML={{ __html: selectedProduct.description ? selectedProduct.description.replace(/\n/g, '<br>') : 'An exquisite piece from our collection.' }} />
+                  {Array.isArray(selectedProduct.linked_items) && selectedProduct.linked_items.length > 0 && (
+                    <div className="box-contents-list" style={{ marginTop: '1.5rem', marginBottom: '1.5rem' }}>
+                      <h4 style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.5rem', color: 'var(--charcoal)' }}>Box Contents:</h4>
+                      <ul style={{ listStyleType: 'none', padding: 0, margin: 0, color: 'var(--body-ink)', fontSize: '0.9rem', lineHeight: '1.6' }}>
+                        {selectedProduct.linked_items.map((item, idx) => (
+                          <li key={idx}>• {item.qty}x {item.name}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                   <div className="add-to-cart-container">
                     <div className="qty-control">
                       <button className="qty-btn" onClick={() => setModalQty(Math.max(1, modalQty - 1))}>-</button>
