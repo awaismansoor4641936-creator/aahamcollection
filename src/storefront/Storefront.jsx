@@ -45,13 +45,13 @@ const ProductCard = ({ p, index, onClick }) => {
       <div className="product-info">
         <span className="product-type">{p.category || 'Jewelry'}</span>
         <h3 className="product-name">{p.name}</h3>
-        {p.originalPrice && p.originalPrice > salePrice ? (
+        {p.originalPrice && Number(p.originalPrice) > Number(salePrice) ? (
           <div className="price-container">
-            <span className="price-original">Rs. {p.originalPrice.toFixed(2)}</span>
-            <span className="product-price">Rs. {salePrice.toFixed(2)}</span>
+            <span className="price-original">Rs. {Number(p.originalPrice).toFixed(2)}</span>
+            <span className="product-price">Rs. {Number(salePrice).toFixed(2)}</span>
           </div>
         ) : (
-          <div className="product-price">Rs. {salePrice.toFixed(2)}</div>
+          <div className="product-price">Rs. {Number(salePrice).toFixed(2)}</div>
         )}
       </div>
     </div>
@@ -512,15 +512,25 @@ export default function Storefront() {
                 <div className="detail-info">
                   <span className="product-type">{selectedProduct.type} | {selectedProduct.category}</span>
                   <h2 className="product-name">{selectedProduct.name}</h2>
-                  {selectedProduct.originalPrice && selectedProduct.originalPrice > selectedProduct.salePrice ? (
+                  {selectedProduct.originalPrice && Number(selectedProduct.originalPrice) > Number(selectedProduct.salePrice) ? (
                     <div className="price-container" style={{ justifyContent: 'flex-start', marginBottom: '2rem' }}>
-                      <span className="price-original">Rs. {selectedProduct.originalPrice.toFixed(2)}</span>
-                      <span className="product-price">Rs. {selectedProduct.salePrice.toFixed(2)}</span>
+                      <span className="price-original">Rs. {Number(selectedProduct.originalPrice).toFixed(2)}</span>
+                      <span className="product-price">Rs. {Number(selectedProduct.salePrice).toFixed(2)}</span>
                     </div>
                   ) : (
-                    <div className="product-price" style={{ marginBottom: '2rem' }}>Rs. {selectedProduct.salePrice.toFixed(2)}</div>
+                    <div className="product-price" style={{ marginBottom: '2rem' }}>Rs. {Number(selectedProduct.salePrice).toFixed(2)}</div>
                   )}
-                  <div className="detail-desc" dangerouslySetInnerHTML={{ __html: selectedProduct.description ? selectedProduct.description.replace(/\n/g, '<br>') : 'An exquisite piece from our collection.' }} />
+                  <div className="detail-desc" dangerouslySetInnerHTML={{ __html: selectedProduct.description ? String(selectedProduct.description).replace(/\n/g, '<br>') : 'An exquisite piece from our collection.' }} />
+                  {Array.isArray(selectedProduct.linked_items) && selectedProduct.linked_items.length > 0 && (
+                    <div className="box-contents-list" style={{ marginTop: '1.5rem', marginBottom: '1.5rem' }}>
+                      <h4 style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.5rem', color: 'var(--charcoal)' }}>Box Contents:</h4>
+                      <ul style={{ listStyleType: 'none', padding: 0, margin: 0, color: 'var(--body-ink)', fontSize: '0.9rem', lineHeight: '1.6' }}>
+                        {selectedProduct.linked_items.map((item, idx) => (
+                          <li key={idx}>• {item.qty}x {item.name}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                   <div className="add-to-cart-container">
                     <div className="qty-control">
                       <button className="qty-btn" onClick={() => setModalQty(Math.max(1, modalQty - 1))}>-</button>

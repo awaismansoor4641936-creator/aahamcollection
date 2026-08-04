@@ -99,6 +99,30 @@ export default function GiftBoxBuilder({ items, giftBoxes, setGiftBoxes }) {
     setCustomName(''); setCustomCost(''); setCustomSale(''); setCustomQty(1);
   };
 
+  const [editingBoxId, setEditingBoxId] = useState(null);
+
+  const handleEditBox = (box) => {
+    setEditingBoxId(box.id);
+    setBoxName(box.name || '');
+    setEmptyCost(box.emptyBoxCost || '');
+    setOriginalBoxPrice(box.originalPrice || '');
+    setEmptySale(box.emptyBoxSale || '');
+    setSelectedItems(box.linked_items || []);
+    setBoxPhotos(box.photos || []);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const cancelEditBox = () => {
+    setEditingBoxId(null);
+    setBoxName('');
+    setEmptyCost('');
+    setEmptySale('');
+    setOriginalBoxPrice('');
+    setSelectedItems([]);
+    setBoxPhotos([]);
+    if (galleryInputRef.current) galleryInputRef.current.value = "";
+  };
+
   const handleSaveBox = async (e) => {
     if(!boxName) return alert('Enter box name');
     
@@ -110,8 +134,7 @@ export default function GiftBoxBuilder({ items, giftBoxes, setGiftBoxes }) {
     try {
       const compressedPhotos = await Promise.all(boxPhotos.map(p => compressImage(p)));
 
-      const newBox = {
-        id: `BOX-${generateId()}`,
+      const boxData = {
         name: boxName,
         emptyBoxCost: parseFloat(emptyCost) || 0,
         emptyBoxSale: parseFloat(emptySale) || 0,
@@ -121,14 +144,18 @@ export default function GiftBoxBuilder({ items, giftBoxes, setGiftBoxes }) {
         photos: compressedPhotos,
       };
 
-      const { data, error } = await supabase.from('gift_boxes').insert([newBox]).select();
-      if (error) throw error;
-      
-      setGiftBoxes(prev => [...prev, data[0]]);
-      
-      setBoxName(''); setEmptyCost(''); setEmptySale(''); setOriginalBoxPrice(''); setSelectedItems([]);
-      setBoxPhotos([]);
-      if (galleryInputRef.current) galleryInputRef.current.value = "";
+      if (editingBoxId) {
+        const { error } = await supabase.from('gift_boxes').update(boxData).eq('id', editingBoxId);
+        if (error) throw error;
+        setGiftBoxes(prev => prev.map(b => b.id === editingBoxId ? { ...b, ...boxData } : b));
+        cancelEditBox();
+      } else {
+        const newBox = { id: `BOX-${generateId()}`, ...boxData };
+        const { data, error } = await supabase.from('gift_boxes').insert([newBox]).select();
+        if (error) throw error;
+        setGiftBoxes(prev => [...prev, data[0]]);
+        cancelEditBox();
+      }
     } catch(err) {
       console.error("Error saving box", err);
       alert("Failed to save box. Error: " + (err.message || err.details || JSON.stringify(err)));
@@ -168,7 +195,7 @@ export default function GiftBoxBuilder({ items, giftBoxes, setGiftBoxes }) {
     <div className="space-y-8 fade-in">
       <div className="bg-white p-8 rounded-xl luxury-shadow luxury-border grid grid-cols-1 lg:grid-cols-2 gap-10">
         <div>
-          <h3 className="font-serif text-xl mb-6 text-gold-600">Create Custom Gift Box</h3>
+          <h3 className="font-serif text-xl mb-6 text-gold-600">{editingBoxId ? "Edit Custom Gift Box" : "Create Custom Gift Box"}</h3>
           <div className="space-y-6">
             <div><label className="block text-xs uppercase tracking-wider text-gray-500 mb-2">Box Name</label><input value={boxName} onChange={e=>setBoxName(e.target.value)} placeholder="e.g., Summer Collection Set" className="w-full border-b border-gray-300 py-2 outline-none bg-transparent font-medium" /></div>
             
@@ -319,8 +346,23 @@ export default function GiftBoxBuilder({ items, giftBoxes, setGiftBoxes }) {
               <span>Final Combined Box Profit:</span> 
               <span>+Rs. {totalBoxProfit.toFixed(2)}</span>
             </div>
+            <div className="flex gap-4">
+              <button 
+                onClick={handleSaveBox}
+                className="flex-1 w-full bg-gold-500 text-white py-3 rounded hover:bg-gold-600 transition font-medium tracking-widest uppercase shadow-md mt-4 text-sm"
+              >
+                {editingBoxId ? "Update Gift Box" : "Save Gift Box"}
+              </button>
+              {editingBoxId && (
+                <button 
+                  onClick={cancelEditBox}
+                  className="flex-1 w-full bg-gray-200 text-charcoal py-3 rounded hover:bg-gray-300 transition font-medium tracking-widest uppercase shadow-md mt-4 text-sm"
+                >
+                  Cancel Edit
+                </button>
+              )}
+            </div>
           </div>
-          <button onClick={handleSaveBox} className="w-full mt-5 bg-charcoal text-white py-3.5 rounded hover:bg-black transition text-sm tracking-widest uppercase shadow-md">Save Gift Box</button>
         </div>
       </div>
 
@@ -355,7 +397,16 @@ export default function GiftBoxBuilder({ items, giftBoxes, setGiftBoxes }) {
                     +Rs. {totals.profit.toFixed(2)}
                   </div>
                 </td>
-                <td className="p-4 text-right"><button onClick={() => handleDelete(box.id)} className="text-gray-400 hover:text-red-500 transition p-2"><Icon name="Trash" /></button></td>
+                    <td className="p-4 text-right">
+                      <div className="flex justify-end gap-2">
+                        <button onClick={() => handleEditBox(box)} className="text-blue-500 hover:text-blue-700 transition" title="Edit Box">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                        </button>
+                        <button onClick={() => handleDelete(box.id)} className="text-red-400 hover:text-red-600 transition" title="Delete Box">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                      </div>
+                    </td>
               </tr>
             )})}
             {giftBoxes.length === 0 && <tr><td colSpan="5" className="p-10 text-center text-gray-400 font-serif italic">No gift boxes created.</td></tr>}

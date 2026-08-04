@@ -158,7 +158,33 @@ function InventoryModule({ items, setItems, giftBoxes, setGiftBoxes }) {
   const [stickyCategory, setStickyCategory] = useState('')
   const [itemPhotos, setItemPhotos] = useState([])
   const [showWebcam, setShowWebcam] = useState(false)
+  const formRef = useRef(null)
   const galleryInputRef = useRef()
+  const [editingItemId, setEditingItemId] = useState(null)
+
+  const handleEditItem = (item) => {
+    setEditingItemId(item.id)
+    setStickyType(item.type || '')
+    setStickyCategory(item.category || '')
+    setItemPhotos(item.photos || [])
+    
+    if (formRef.current) {
+      formRef.current.pieces.value = item.pieces || 1
+      formRef.current.costPrice.value = item.costPrice || 0
+      formRef.current.originalPrice.value = item.originalPrice || ''
+      formRef.current.salePrice.value = item.salePrice || 0
+      formRef.current.description.value = item.description || ''
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+  }
+
+  const cancelEdit = () => {
+    setEditingItemId(null)
+    setStickyType('')
+    setStickyCategory('')
+    setItemPhotos([])
+    if (formRef.current) formRef.current.reset()
+  }
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -193,8 +219,7 @@ function InventoryModule({ items, setItems, giftBoxes, setGiftBoxes }) {
       const formData = new FormData(e.target);
       const compressedPhotos = await Promise.all(itemPhotos.map(p => compressImage(p)));
 
-      const newItem = {
-        id: `ITM-${generateId()}`,
+      const itemData = {
         name: `${stickyType} - ${stickyCategory}`,
         type: stickyType,
         category: stickyCategory,
@@ -207,14 +232,23 @@ function InventoryModule({ items, setItems, giftBoxes, setGiftBoxes }) {
         photos: compressedPhotos,
       };
       
-      const { data, error } = await supabase.from('products').insert([newItem]).select()
-      if (!error && data) {
-        setItems(prev => [...prev, data[0]])
-        e.target.reset()
-        setItemPhotos([])
-        if(galleryInputRef.current) galleryInputRef.current.value = ""
+      if (editingItemId) {
+        const { error } = await supabase.from('products').update(itemData).eq('id', editingItemId)
+        if (!error) {
+          setItems(prev => prev.map(i => i.id === editingItemId ? { ...i, ...itemData } : i))
+          cancelEdit()
+        } else {
+          alert("Error updating item in Supabase.")
+        }
       } else {
-        alert("Error adding item to Supabase.")
+        const newItem = { id: `ITM-${generateId()}`, ...itemData }
+        const { data, error } = await supabase.from('products').insert([newItem]).select()
+        if (!error && data) {
+          setItems(prev => [...prev, data[0]])
+          cancelEdit()
+        } else {
+          alert("Error adding item to Supabase.")
+        }
       }
     } catch(err) {
       console.error(err);
@@ -254,8 +288,8 @@ function InventoryModule({ items, setItems, giftBoxes, setGiftBoxes }) {
       {tab === 'items' && (
         <div className="space-y-8">
           <div className="bg-white p-8 rounded-xl luxury-shadow luxury-border">
-            <h3 className="font-serif text-xl mb-6 text-gold-600">Add Jewelry Item</h3>
-            <form onSubmit={handleAddItem} className="grid grid-cols-1 md:grid-cols-6 gap-6">
+            <h3 className="font-serif text-xl mb-6 text-gold-600">{editingItemId ? "Edit Jewelry Item" : "Add Jewelry Item"}</h3>
+            <form ref={formRef} onSubmit={handleAddItem} className="grid grid-cols-1 md:grid-cols-6 gap-6">
               <div className="md:col-span-6">
                 <label className="block text-xs uppercase tracking-wider text-gray-500 mb-2">Item Photos (Multi-Upload)</label>
                 <input type="file" ref={galleryInputRef} accept="image/*" onChange={handleImageChange} className="hidden" />
@@ -297,8 +331,15 @@ function InventoryModule({ items, setItems, giftBoxes, setGiftBoxes }) {
                 <label className="block text-xs uppercase tracking-wider text-gray-500 mb-2">Description</label>
                 <input name="description" className="w-full border-b border-gray-300 py-2 focus:border-gold-500 outline-none" />
               </div>
-              <div className="md:col-span-6 flex items-end">
-                <button type="submit" className="w-full bg-gold-500 text-white py-2.5 rounded hover:bg-gold-600 transition text-sm tracking-widest uppercase shadow-md">Add Item</button>
+              <div className="md:col-span-6 flex items-end gap-4">
+                <button type="submit" className="flex-1 bg-gold-500 text-white py-2.5 rounded hover:bg-gold-600 transition text-sm tracking-widest uppercase shadow-md">
+                  {editingItemId ? "Update Item" : "Add Item"}
+                </button>
+                {editingItemId && (
+                  <button type="button" onClick={cancelEdit} className="flex-1 bg-gray-200 text-charcoal py-2.5 rounded hover:bg-gray-300 transition text-sm tracking-widest uppercase shadow-md">
+                    Cancel Edit
+                  </button>
+                )}
               </div>
             </form>
           </div>
@@ -333,7 +374,16 @@ function InventoryModule({ items, setItems, giftBoxes, setGiftBoxes }) {
                         +Rs. {(item.salePrice - item.costPrice).toFixed(2)}
                       </div>
                     </td>
-                    <td className="p-4 text-right"><button onClick={() => handleDeleteItem(item.id)} className="text-gray-400 hover:text-red-500 transition p-2"><Icon name="Trash" /></button></td>
+                    <td className="p-4 text-right">
+                      <div className="flex justify-end gap-2">
+                        <button onClick={() => handleEditItem(item)} className="text-blue-500 hover:text-blue-700 transition" title="Edit Item">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                        </button>
+                        <button onClick={() => handleDeleteItem(item.id)} className="text-red-400 hover:text-red-600 transition" title="Delete Item">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
