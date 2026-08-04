@@ -113,9 +113,9 @@ export default function GiftBoxBuilder({ items, giftBoxes, setGiftBoxes }) {
       const newBox = {
         id: `BOX-${generateId()}`,
         name: boxName,
-        empty_box_cost: parseFloat(emptyCost) || 0,
-        empty_box_sale: parseFloat(emptySale) || 0,
-        original_price: parseFloat(originalBoxPrice) || null,
+        emptyBoxCost: parseFloat(emptyCost) || 0,
+        emptyBoxSale: parseFloat(emptySale) || 0,
+        originalPrice: parseFloat(originalBoxPrice) || null,
         linked_items: selectedItems,
         image: compressedPhotos.length > 0 ? compressedPhotos[0] : null,
         photos: compressedPhotos,
@@ -131,7 +131,7 @@ export default function GiftBoxBuilder({ items, giftBoxes, setGiftBoxes }) {
       if (galleryInputRef.current) galleryInputRef.current.value = "";
     } catch(err) {
       console.error("Error saving box", err);
-      alert("Failed to save box.");
+      alert("Failed to save box. Error: " + (err.message || err.details || JSON.stringify(err)));
     } finally {
       btn.innerText = originalText;
       btn.disabled = false;

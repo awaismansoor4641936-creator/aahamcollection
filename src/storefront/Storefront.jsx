@@ -80,11 +80,24 @@ export default function Storefront() {
   }, [cart])
 
   useEffect(() => {
-    fetchProducts()
+    fetchProducts(true)
+
+    const channel = supabase.channel('storefront-db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
+        fetchProducts(false)
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'gift_boxes' }, () => {
+        fetchProducts(false)
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [])
 
-  const fetchProducts = async () => {
-    setIsLoading(true)
+  const fetchProducts = async (isInitial = false) => {
+    if (isInitial) setIsLoading(true)
     setHasError(false)
     try {
       const { data: itemsData, error: itemsError } = await supabase.from('products').select('*').order('created_at', { ascending: true })
@@ -120,7 +133,7 @@ export default function Storefront() {
       console.error("Error fetching products:", err)
       setHasError(true)
     } finally {
-      setIsLoading(false)
+      if (isInitial) setIsLoading(false)
     }
   }
 
@@ -131,9 +144,68 @@ export default function Storefront() {
 
   const randomProducts = useMemo(() => {
     if (products.length === 0) return [];
-    const shuffled = [...products].sort(() => 0.5 - Math.random());
-    return shuffled.slice(0, 8);
+    
+    const byType = {};
+    products.forEach(p => {
+      const t = p.type || 'Uncategorized';
+      if (!byType[t]) byType[t] = [];
+      byType[t].push(p);
+    });
+
+    const selected = [];
+    const remaining = [...products];
+
+    const selectItem = (item) => {
+      if (!item) return;
+      selected.push(item);
+      const rIdx = remaining.findIndex(x => x.id === item.id);
+      if(rIdx > -1) remaining.splice(rIdx, 1);
+    };
+
+    Object.keys(byType).forEach(t => {
+      const items = byType[t];
+      if (t === 'Gift Box' || t === 'Gift Boxes') {
+        const shuffledBoxes = [...items].sort(() => 0.5 - Math.random());
+        if (shuffledBoxes.length > 0) selectItem(shuffledBoxes[0]);
+        if (shuffledBoxes.length > 1) selectItem(shuffledBoxes[1]);
+      } else {
+        const randomItem = items[Math.floor(Math.random() * items.length)];
+        selectItem(randomItem);
+      }
+    });
+
+    selected.sort(() => 0.5 - Math.random());
+
+    if (selected.length < 10) {
+      remaining.sort(() => 0.5 - Math.random());
+      const needed = 10 - selected.length;
+      selected.push(...remaining.slice(0, needed));
+    }
+
+    return selected.slice(0, 10);
   }, [products])
+
+  const sliderRef = useRef(null);
+  const [scrollProgress, setScrollProgress] = useState(0);
+
+  const handleScroll = () => {
+    if (sliderRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = sliderRef.current;
+      const maxScroll = scrollWidth - clientWidth;
+      if (maxScroll > 0) {
+        setScrollProgress((scrollLeft / maxScroll) * 100);
+      } else {
+        setScrollProgress(0);
+      }
+    }
+  };
+
+  const scrollSlider = (direction) => {
+    if (sliderRef.current) {
+      const scrollAmount = sliderRef.current.clientWidth * 0.8;
+      sliderRef.current.scrollBy({ left: direction === 'left' ? -scrollAmount : scrollAmount, behavior: 'smooth' });
+    }
+  };
 
   const filteredProducts = useMemo(() => {
     let filtered = products
@@ -327,12 +399,23 @@ export default function Storefront() {
               {isLoading && <div className="loading-state">Loading featured products...</div>}
               {hasError && <div className="loading-state">Something went wrong.</div>}
               {!isLoading && !hasError && (
-                <div className="slider-container">
+                <div className="slider-container" ref={sliderRef} onScroll={handleScroll}>
                   {randomProducts.map((p, index) => (
                     <div className="slider-item" key={p.id}>
                       {renderProductCard(p, index)}
                     </div>
                   ))}
+                </div>
+                <div className="slider-controls">
+                  <button className="slider-arrow left" onClick={() => scrollSlider('left')} aria-label="Scroll left">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
+                  </button>
+                  <div className="slider-progress-bar">
+                    <div className="slider-progress-thumb" style={{ left: `calc(${scrollProgress}% - ${scrollProgress * 0.5}px)` }}></div>
+                  </div>
+                  <button className="slider-arrow right" onClick={() => scrollSlider('right')} aria-label="Scroll right">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
+                  </button>
                 </div>
               )}
             </section>
