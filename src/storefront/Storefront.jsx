@@ -500,7 +500,7 @@ export default function Storefront() {
             <button className="close-modal" onClick={() => setSelectedProduct(null)}>&times;</button>
             <div className="modal-body">
               <div className="detail-layout">
-                <div className="detail-image-col">
+                <div className="detail-image-col" style={{ flex: '1 1 50%', minWidth: '50%' }}>
                   <div className="main-image-container">
                     {modalImage ? <img src={modalImage} alt={selectedProduct.name} /> : <div className="no-image-placeholder">No Image</div>}
                   </div>
@@ -518,8 +518,12 @@ export default function Storefront() {
                     </div>
                   )}
                 </div>
-                <div className="detail-info">
-                  <span className="product-type">{selectedProduct.type} | {selectedProduct.category}</span>
+                <div className="detail-info" style={{ flex: '1 1 50%', minWidth: '50%' }}>
+                  <span className="product-type">
+                    {(selectedProduct.type === 'Gift Box' || selectedProduct.type === 'Gift Boxes') 
+                      ? 'Customize Gift Box' 
+                      : `${selectedProduct.type} | ${selectedProduct.category}`}
+                  </span>
                   <h2 className="product-name">{selectedProduct.name}</h2>
                   {selectedProduct.originalPrice && Number(selectedProduct.originalPrice) > Number(selectedProduct.salePrice) ? (
                     <div className="price-container" style={{ justifyContent: 'flex-start', marginBottom: '2rem' }}>
@@ -531,7 +535,7 @@ export default function Storefront() {
                   )}
                   <div className="detail-desc" dangerouslySetInnerHTML={{ __html: selectedProduct.description ? String(selectedProduct.description).replace(/\n/g, '<br>') : 'An exquisite piece from our collection.' }} />
                   {Array.isArray(selectedProduct.linked_items) && selectedProduct.linked_items.length > 0 && (
-                    <div className="box-contents-list" style={{ marginTop: '1.5rem', marginBottom: '1.5rem' }}>
+                    <div className="box-contents-list" style={{ marginTop: '0.5rem', marginBottom: '1.5rem' }}>
                       <h4 style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.5rem', color: 'var(--charcoal)' }}>Box Contents:</h4>
                       <ul style={{ listStyleType: 'none', padding: 0, margin: 0, color: 'var(--body-ink)', fontSize: '0.9rem', lineHeight: '1.6', maxHeight: '160px', overflowY: 'auto', paddingRight: '5px' }}>
                         {selectedProduct.linked_items.map((item, idx) => {
