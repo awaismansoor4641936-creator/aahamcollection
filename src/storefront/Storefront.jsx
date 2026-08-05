@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import AzadiHero from '../components/AzadiHero/AzadiHero'
 
 const ProductCard = ({ p, index, onClick }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -59,6 +60,8 @@ const ProductCard = ({ p, index, onClick }) => {
 };
 
 export default function Storefront() {
+  const SHOW_AZADI_BANNER = true; // Toggle this to 'false' to revert to the old hero banner
+
   const [products, setProducts] = useState([])
   const [cart, setCart] = useState(() => {
     const saved = sessionStorage.getItem('aaham_cart')
@@ -68,7 +71,7 @@ export default function Storefront() {
   const [searchQuery, setSearchQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
-  
+
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isCartOpen, setIsCartOpen] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState(null)
@@ -144,10 +147,10 @@ export default function Storefront() {
 
   const randomProducts = useMemo(() => {
     if (products.length === 0) return [];
-    
+
     const boxes = products.filter(p => p.type === 'Gift Box' || p.type === 'Gift Boxes');
     const normalItems = products.filter(p => p.type !== 'Gift Box' && p.type !== 'Gift Boxes');
-    
+
     const byType = {};
     normalItems.forEach(p => {
       const t = p.type || 'Uncategorized';
@@ -157,7 +160,7 @@ export default function Storefront() {
 
     const finalSelection = [];
     const usedIds = new Set();
-    
+
     // Pick 2 gift boxes guaranteed
     const shuffledBoxes = [...boxes].sort(() => 0.5 - Math.random());
     const selectedBoxes = shuffledBoxes.slice(0, 2);
@@ -190,7 +193,7 @@ export default function Storefront() {
 
     // Final shuffle so boxes aren't always at the beginning
     finalSelection.sort(() => 0.5 - Math.random());
-    
+
     return finalSelection;
   }, [products])
 
@@ -223,8 +226,8 @@ export default function Storefront() {
     }
     if (searchQuery) {
       const q = searchQuery.toLowerCase()
-      filtered = filtered.filter(p => 
-        (p.name || '').toLowerCase().includes(q) || 
+      filtered = filtered.filter(p =>
+        (p.name || '').toLowerCase().includes(q) ||
         (p.category || '').toLowerCase().includes(q) ||
         (p.id || '').toLowerCase().includes(q)
       )
@@ -274,7 +277,7 @@ export default function Storefront() {
     if (validPhotos.length === 0 && (p.image || p.photo)) validPhotos = [p.image || p.photo];
 
     return (
-      <ProductCard 
+      <ProductCard
         key={p.id}
         p={p}
         index={index}
@@ -294,15 +297,15 @@ export default function Storefront() {
     let message = `AAHAM COLLECTION — Order Summary\n\n`;
     let total = 0;
     cart.forEach((item, index) => {
-        const lineTotal = item.price * item.qty;
-        total += lineTotal;
-        message += `${index + 1}. ${item.name} (ID: ${item.id}) — Qty: ${item.qty} — Rs. ${lineTotal.toFixed(2)}\n`;
+      const lineTotal = item.price * item.qty;
+      total += lineTotal;
+      message += `${index + 1}. ${item.name} (ID: ${item.id}) — Qty: ${item.qty} — Rs. ${lineTotal.toFixed(2)}\n`;
     });
     message += `\nGrand Total: Rs. ${total.toFixed(2)}\n\n`;
     if (total >= 2500) {
-        message += `Free delivery included on this order.`;
+      message += `Free delivery included on this order.`;
     } else {
-        message += `Note: Delivery charges are not included in this bill and will be informed separately.`;
+      message += `Note: Delivery charges are not included in this bill and will be informed separately.`;
     }
     return message;
   }
@@ -330,12 +333,23 @@ export default function Storefront() {
 
       <div className="free-delivery-banner">
         <div className="marquee-content">
-          <span>FREE DELIVERY ON ORDERS ABOVE RS. 2,500</span><span className="marquee-divider">•</span>
-          <span>Personalized orders for your loved ones, just a WhatsApp message away!</span><span className="marquee-divider">•</span>
-          <span>SAVE BIG ON ALMOST OUR ENTIRE COLLECTION—EXCLUSIVE DISCOUNTS FOR OUR FIRST 100 CUSTOMERS!</span><span className="marquee-divider">•</span>
-          <span>FREE DELIVERY ON ORDERS ABOVE RS. 2,500</span><span className="marquee-divider">•</span>
-          <span>Personalized orders for your loved ones, just a WhatsApp message away!</span><span className="marquee-divider">•</span>
-          <span>SAVE BIG ON ALMOST OUR ENTIRE COLLECTION—EXCLUSIVE DISCOUNTS FOR OUR FIRST 100 CUSTOMERS!</span><span className="marquee-divider">•</span>
+          {SHOW_AZADI_BANNER ? (
+            <>
+              <span>Jashn-e-Azadi Sale — Up To 25% Off Sitewide, Discounts Vary By Item</span><span className="marquee-divider">•</span>
+              <span>Personalized orders for your loved ones, just a WhatsApp message away!</span><span className="marquee-divider">•</span>
+              <span>Jashn-e-Azadi Sale — Up To 25% Off Sitewide, Discounts Vary By Item</span><span className="marquee-divider">•</span>
+              <span>Personalized orders for your loved ones, just a WhatsApp message away!</span><span className="marquee-divider">•</span>
+            </>
+          ) : (
+            <>
+              <span>FREE DELIVERY ON ORDERS ABOVE RS. 2,500</span><span className="marquee-divider">•</span>
+              <span>Personalized orders for your loved ones, just a WhatsApp message away!</span><span className="marquee-divider">•</span>
+              <span>SAVE BIG ON ALMOST OUR ENTIRE COLLECTION—EXCLUSIVE DISCOUNTS FOR OUR FIRST 100 CUSTOMERS!</span><span className="marquee-divider">•</span>
+              <span>FREE DELIVERY ON ORDERS ABOVE RS. 2,500</span><span className="marquee-divider">•</span>
+              <span>Personalized orders for your loved ones, just a WhatsApp message away!</span><span className="marquee-divider">•</span>
+              <span>SAVE BIG ON ALMOST OUR ENTIRE COLLECTION—EXCLUSIVE DISCOUNTS FOR OUR FIRST 100 CUSTOMERS!</span><span className="marquee-divider">•</span>
+            </>
+          )}
         </div>
       </div>
 
@@ -368,7 +382,7 @@ export default function Storefront() {
           </div>
           <div className="mobile-category-list">
             {allTypes.map(type => (
-              <button 
+              <button
                 key={type}
                 className={`nav-category-link ${currentCategory === type ? 'active' : ''}`}
                 onClick={() => {
@@ -394,15 +408,21 @@ export default function Storefront() {
 
         {showHomeLayout ? (
           <>
-            <section className="hero">
-              <div className="hero-content">
-                <h2 className="brand-title">AAHAM</h2>
-                <span className="brand-subtitle">COLLECTION</span>
-                <div className="hero-divider"></div>
-                <p className="tagline">Jewelry | Customize Gift Boxes | Bouquets</p>
-              </div>
-            </section>
-            
+            {SHOW_AZADI_BANNER ? (
+              <AzadiHero onShopClick={() => {
+                document.querySelector('.featured-slider-section')?.scrollIntoView({ behavior: 'smooth' });
+              }} />
+            ) : (
+              <section className="hero">
+                <div className="hero-content">
+                  <h2 className="brand-title">AAHAM</h2>
+                  <span className="brand-subtitle">COLLECTION</span>
+                  <div className="hero-divider"></div>
+                  <p className="tagline">Jewelry | Customize Gift Boxes | Bouquets</p>
+                </div>
+              </section>
+            )}
+
             <section className="featured-slider-section">
               <h2 className="section-title" style={{ textAlign: 'center', marginBottom: '2rem', fontFamily: "'Playfair Display', serif", fontSize: '2.5rem' }}>SHOP BY COLLECTION</h2>
               {isLoading && <div className="loading-state">Loading featured products...</div>}
@@ -507,12 +527,12 @@ export default function Storefront() {
                   {Array.isArray(selectedProduct.photos) && selectedProduct.photos.length > 1 && (
                     <div className="thumbnail-row">
                       {selectedProduct.photos.map((src, i) => (
-                        <img 
-                          key={i} 
-                          src={src} 
-                          className={`thumbnail-img ${modalImage === src ? 'active' : ''}`} 
-                          alt="thumbnail" 
-                          onClick={() => setModalImage(src)} 
+                        <img
+                          key={i}
+                          src={src}
+                          className={`thumbnail-img ${modalImage === src ? 'active' : ''}`}
+                          alt="thumbnail"
+                          onClick={() => setModalImage(src)}
                         />
                       ))}
                     </div>
@@ -520,8 +540,8 @@ export default function Storefront() {
                 </div>
                 <div className="detail-info" style={{ flex: '1 1 50%', minWidth: '50%' }}>
                   <span className="product-type">
-                    {(selectedProduct.type === 'Gift Box' || selectedProduct.type === 'Gift Boxes') 
-                      ? 'Customize Gift Box' 
+                    {(selectedProduct.type === 'Gift Box' || selectedProduct.type === 'Gift Boxes')
+                      ? 'Customize Gift Box'
                       : `${selectedProduct.type} | ${selectedProduct.category}`}
                   </span>
                   <h2 className="product-name">{selectedProduct.name}</h2>
@@ -578,7 +598,7 @@ export default function Storefront() {
         <div className="cart-drawer-body">
           {cart.length > 0 && cartTotal >= 2500 && <div className="cart-nudge success">You've unlocked free delivery! 🎉</div>}
           {cart.length > 0 && cartTotal < 2500 && <div className="cart-nudge pending">Add Rs. {(2500 - cartTotal).toFixed(2)} more to unlock free delivery!</div>}
-          
+
           {cart.length === 0 ? (
             <div className="empty-cart">Your cart is empty.</div>
           ) : (
