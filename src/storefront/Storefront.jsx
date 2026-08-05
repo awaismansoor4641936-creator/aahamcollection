@@ -145,44 +145,53 @@ export default function Storefront() {
   const randomProducts = useMemo(() => {
     if (products.length === 0) return [];
     
+    const boxes = products.filter(p => p.type === 'Gift Box' || p.type === 'Gift Boxes');
+    const normalItems = products.filter(p => p.type !== 'Gift Box' && p.type !== 'Gift Boxes');
+    
     const byType = {};
-    products.forEach(p => {
+    normalItems.forEach(p => {
       const t = p.type || 'Uncategorized';
       if (!byType[t]) byType[t] = [];
       byType[t].push(p);
     });
 
-    const selected = [];
-    const remaining = [...products];
+    const finalSelection = [];
+    const usedIds = new Set();
+    
+    // Pick 2 gift boxes guaranteed
+    const shuffledBoxes = [...boxes].sort(() => 0.5 - Math.random());
+    const selectedBoxes = shuffledBoxes.slice(0, 2);
+    selectedBoxes.forEach(b => { finalSelection.push(b); usedIds.add(b.id); });
 
-    const selectItem = (item) => {
-      if (!item) return;
-      selected.push(item);
-      const rIdx = remaining.findIndex(x => x.id === item.id);
-      if(rIdx > -1) remaining.splice(rIdx, 1);
-    };
-
+    // Pick 1 from each category
+    const selectedNormals = [];
     Object.keys(byType).forEach(t => {
       const items = byType[t];
-      if (t === 'Gift Box' || t === 'Gift Boxes') {
-        const shuffledBoxes = [...items].sort(() => 0.5 - Math.random());
-        if (shuffledBoxes.length > 0) selectItem(shuffledBoxes[0]);
-        if (shuffledBoxes.length > 1) selectItem(shuffledBoxes[1]);
-      } else {
-        const randomItem = items[Math.floor(Math.random() * items.length)];
-        selectItem(randomItem);
+      const randomItem = items[Math.floor(Math.random() * items.length)];
+      if (randomItem && !usedIds.has(randomItem.id)) {
+        selectedNormals.push(randomItem);
+        usedIds.add(randomItem.id);
       }
     });
 
-    selected.sort(() => 0.5 - Math.random());
+    selectedNormals.sort(() => 0.5 - Math.random());
 
-    if (selected.length < 10) {
-      remaining.sort(() => 0.5 - Math.random());
-      const needed = 10 - selected.length;
-      selected.push(...remaining.slice(0, needed));
+    // Combine, limiting to 10 total
+    const neededFromNormals = 10 - finalSelection.length;
+    finalSelection.push(...selectedNormals.slice(0, neededFromNormals));
+
+    // Fill any remaining gaps if we have fewer than 10 total categories
+    if (finalSelection.length < 10) {
+      const remainingNormals = normalItems.filter(p => !usedIds.has(p.id));
+      remainingNormals.sort(() => 0.5 - Math.random());
+      const stillNeeded = 10 - finalSelection.length;
+      finalSelection.push(...remainingNormals.slice(0, stillNeeded));
     }
 
-    return selected.slice(0, 10);
+    // Final shuffle so boxes aren't always at the beginning
+    finalSelection.sort(() => 0.5 - Math.random());
+    
+    return finalSelection;
   }, [products])
 
   const sliderRef = useRef(null);
@@ -524,10 +533,18 @@ export default function Storefront() {
                   {Array.isArray(selectedProduct.linked_items) && selectedProduct.linked_items.length > 0 && (
                     <div className="box-contents-list" style={{ marginTop: '1.5rem', marginBottom: '1.5rem' }}>
                       <h4 style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.5rem', color: 'var(--charcoal)' }}>Box Contents:</h4>
-                      <ul style={{ listStyleType: 'none', padding: 0, margin: 0, color: 'var(--body-ink)', fontSize: '0.9rem', lineHeight: '1.6' }}>
-                        {selectedProduct.linked_items.map((item, idx) => (
-                          <li key={idx}>• {item.qty}x {item.name}</li>
-                        ))}
+                      <ul style={{ listStyleType: 'none', padding: 0, margin: 0, color: 'var(--body-ink)', fontSize: '0.9rem', lineHeight: '1.6', maxHeight: '160px', overflowY: 'auto', paddingRight: '5px' }}>
+                        {selectedProduct.linked_items.map((item, idx) => {
+                          let itemName = item.name;
+                          if ((item.type || 'inventory') === 'inventory') {
+                            const found = products.find(p => p.id === item.itemId);
+                            if (found) itemName = found.name;
+                            else itemName = "Jewelry Item";
+                          }
+                          return (
+                            <li key={idx} style={{ paddingBottom: '4px' }}>• {item.qty}x {itemName}</li>
+                          );
+                        })}
                       </ul>
                     </div>
                   )}
