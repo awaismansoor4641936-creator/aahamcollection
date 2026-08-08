@@ -24,9 +24,13 @@ export const calculateBoxTotals = (box, allItems) => {
   });
 
   const tCost = eCost + itemsCost;
-  const eSale = box.emptyBoxSale !== undefined ? box.emptyBoxSale : box.empty_box_sale;
+  
+  const rawESale = box.emptyBoxSale !== undefined ? box.emptyBoxSale : box.empty_box_sale;
+  // Automatically include empty box cost in the sale price if no explicit sale price is set
+  const eSale = (!rawESale && eCost > 0) ? eCost : (rawESale || 0);
+  
   const bSale = box.salePrice !== undefined ? box.salePrice : box.sale_price;
-  const tSale = eSale !== undefined ? (eSale + itemsSale) : (bSale || 0);
+  const tSale = (box.emptyBoxSale !== undefined || box.empty_box_sale !== undefined) ? (eSale + itemsSale) : (bSale || 0);
   
   return { cost: tCost, sale: tSale, profit: tSale - tCost };
 };

@@ -173,7 +173,8 @@ export default function GiftBoxBuilder({ items, giftBoxes, setGiftBoxes }) {
   };
 
   const eCost = parseFloat(emptyCost) || 0;
-  const eSale = parseFloat(emptySale) || 0;
+  let rawSale = parseFloat(emptySale);
+  const eSale = (isNaN(rawSale) || rawSale === 0) && eCost > 0 ? eCost : (rawSale || 0);
 
   const itemsSummary = selectedItems.reduce((acc, link) => {
     const lType = link.type || 'inventory';
