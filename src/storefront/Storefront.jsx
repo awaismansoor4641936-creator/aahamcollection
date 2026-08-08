@@ -124,13 +124,21 @@ export default function Storefront() {
         });
         return {
           ...box,
-          type: 'Gift Box',
-          category: 'Gift Box',
+          type: 'Customized Boxes',
+          category: 'Customized',
           salePrice: (box.emptyBoxSale || 0) + itemsSale
         };
       });
 
-      const allProducts = [...(itemsData || []), ...processedGiftBoxes]
+      const normalizedItems = (itemsData || []).map(p => {
+        let t = p.type;
+        let c = p.category;
+        if (t === 'Gift Box' || t === 'Gift Boxes') t = 'Customized Boxes';
+        if (c === 'Gift Box' || c === 'Gift Boxes') c = 'Customized';
+        return { ...p, type: t, category: c };
+      });
+
+      const allProducts = [...normalizedItems, ...processedGiftBoxes]
       setProducts(allProducts)
     } catch (err) {
       console.error("Error fetching products:", err)
@@ -148,8 +156,8 @@ export default function Storefront() {
   const randomProducts = useMemo(() => {
     if (products.length === 0) return [];
 
-    const boxes = products.filter(p => p.type === 'Gift Box' || p.type === 'Gift Boxes');
-    const normalItems = products.filter(p => p.type !== 'Gift Box' && p.type !== 'Gift Boxes');
+    const boxes = products.filter(p => p.type === 'Customized Boxes');
+    const normalItems = products.filter(p => p.type !== 'Customized Boxes');
 
     const byType = {};
     normalItems.forEach(p => {
@@ -161,9 +169,9 @@ export default function Storefront() {
     const finalSelection = [];
     const usedIds = new Set();
 
-    // Pick 2 gift boxes guaranteed
+    // Pick 4 gift boxes guaranteed
     const shuffledBoxes = [...boxes].sort(() => 0.5 - Math.random());
-    const selectedBoxes = shuffledBoxes.slice(0, 2);
+    const selectedBoxes = shuffledBoxes.slice(0, 4);
     selectedBoxes.forEach(b => { finalSelection.push(b); usedIds.add(b.id); });
 
     // Pick 1 from each category
@@ -424,7 +432,7 @@ export default function Storefront() {
             )}
 
             <section className="featured-slider-section">
-              <h2 className="section-title" style={{ textAlign: 'center', marginBottom: '2rem', fontFamily: "'Playfair Display', serif", fontSize: '2.5rem' }}>SHOP BY COLLECTION</h2>
+              <h2 className="section-title" style={{ textAlign: 'center', marginBottom: '2rem', fontFamily: "'Playfair Display', serif", fontSize: '2.5rem' }}>FEATURED PRODUCTS</h2>
               {isLoading && <div className="loading-state">Loading featured products...</div>}
               {hasError && <div className="loading-state">Something went wrong.</div>}
               {!isLoading && !hasError && (
@@ -540,7 +548,7 @@ export default function Storefront() {
                 </div>
                 <div className="detail-info" style={{ flex: '1 1 50%', minWidth: '50%' }}>
                   <span className="product-type">
-                    {(selectedProduct.type === 'Gift Box' || selectedProduct.type === 'Gift Boxes')
+                    {(selectedProduct.type === 'Customized Boxes')
                       ? 'Customize Gift Box'
                       : `${selectedProduct.type} | ${selectedProduct.category}`}
                   </span>
