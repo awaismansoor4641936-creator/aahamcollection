@@ -46,7 +46,9 @@ const ProductCard = ({ p, index, onClick }) => {
       <div className="product-info">
         <span className="product-type">{p.category || 'Jewelry'}</span>
         <h3 className="product-name">{p.name}</h3>
-        {p.originalPrice && Number(p.originalPrice) > Number(salePrice) ? (
+        {p.type === 'Celebration Hampers' ? (
+          <div className="product-price" style={{ fontStyle: 'italic', color: 'var(--gold-600)' }}>Custom Pricing</div>
+        ) : p.originalPrice && Number(p.originalPrice) > Number(salePrice) ? (
           <div className="price-container">
             <span className="price-original">Rs. {Number(p.originalPrice).toFixed(2)}</span>
             <span className="product-price">Rs. {Number(salePrice).toFixed(2)}</span>
@@ -257,7 +259,8 @@ export default function Storefront() {
         name: product.name,
         price: product.salePrice,
         image: coverImage,
-        qty: qty
+        qty: qty,
+        type: product.type
       }]
     })
     setSelectedProduct(null)
@@ -548,12 +551,14 @@ export default function Storefront() {
                 </div>
                 <div className="detail-info" style={{ flex: '1 1 50%', minWidth: '50%' }}>
                   <span className="product-type">
-                    {(selectedProduct.type === 'Customized Boxes')
+                    {(selectedProduct.type === 'Customized Boxes' || selectedProduct.type === 'Celebration Hampers')
                       ? 'Customize Gift Box'
                       : `${selectedProduct.type} | ${selectedProduct.category}`}
                   </span>
                   <h2 className="product-name">{selectedProduct.name}</h2>
-                  {selectedProduct.originalPrice && Number(selectedProduct.originalPrice) > Number(selectedProduct.salePrice) ? (
+                  {selectedProduct.type === 'Celebration Hampers' ? (
+                    <div className="product-price" style={{ marginBottom: '2rem', fontStyle: 'italic', color: 'var(--gold-600)' }}>Custom Pricing</div>
+                  ) : selectedProduct.originalPrice && Number(selectedProduct.originalPrice) > Number(selectedProduct.salePrice) ? (
                     <div className="price-container" style={{ justifyContent: 'flex-start', marginBottom: '2rem' }}>
                       <span className="price-original">Rs. {Number(selectedProduct.originalPrice).toFixed(2)}</span>
                       <span className="product-price">Rs. {Number(selectedProduct.salePrice).toFixed(2)}</span>
@@ -626,7 +631,11 @@ export default function Storefront() {
                         <input type="number" readOnly className="qty-input" value={item.qty} />
                         <button className="qty-btn" onClick={() => updateCartQty(item.id, 1)}>+</button>
                       </div>
-                      <div className="cart-item-price">Rs. {(item.price * item.qty).toFixed(2)}</div>
+                      {item.type === 'Celebration Hampers' ? (
+                        <div className="cart-item-price" style={{ fontSize: '0.75rem', color: 'var(--gold-600)', maxWidth: '120px', textAlign: 'right', fontStyle: 'italic', lineHeight: '1.2' }}>Want this product to Customized</div>
+                      ) : (
+                        <div className="cart-item-price">Rs. {(item.price * item.qty).toFixed(2)}</div>
+                      )}
                     </div>
                   </div>
                 </div>

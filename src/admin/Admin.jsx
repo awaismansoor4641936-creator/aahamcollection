@@ -5,6 +5,7 @@ import PurchaseModule from './PurchaseModule'
 import BillingModule from './BillingModule'
 import CatalogGrid from './CatalogGrid'
 import GiftBoxBuilder from './GiftBoxBuilder'
+import HamperBuilder from './HamperBuilder'
 import WebcamCapture from './WebcamCapture'
 import { Icon, generateId } from './utils'
 
@@ -274,6 +275,7 @@ function InventoryModule({ items, setItems, giftBoxes, setGiftBoxes }) {
       <div className="flex gap-4 mb-6 border-b border-gray-200">
         <button onClick={() => setTab('items')} className={`pb-3 px-4 text-sm font-medium tracking-wider uppercase transition border-b-2 ${tab === 'items' ? 'border-gold-500 text-charcoal' : 'border-transparent text-gray-400'}`}>Jewelry Items</button>
         <button onClick={() => setTab('boxes')} className={`pb-3 px-4 text-sm font-medium tracking-wider uppercase transition border-b-2 ${tab === 'boxes' ? 'border-gold-500 text-charcoal' : 'border-transparent text-gray-400'}`}>Gift Boxes</button>
+        <button onClick={() => setTab('hampers')} className={`pb-3 px-4 text-sm font-medium tracking-wider uppercase transition border-b-2 ${tab === 'hampers' ? 'border-gold-500 text-charcoal' : 'border-transparent text-gray-400'}`}>Celebration Hampers</button>
         <button onClick={() => setTab('visual')} className={`pb-3 px-4 text-sm font-medium tracking-wider uppercase transition border-b-2 ${tab === 'visual' ? 'border-gold-500 text-charcoal' : 'border-transparent text-gray-400'}`}>Visual Inventory</button>
       </div>
 
@@ -282,7 +284,11 @@ function InventoryModule({ items, setItems, giftBoxes, setGiftBoxes }) {
       )}
 
       {tab === 'visual' && (
-        <CatalogGrid items={items} giftBoxes={giftBoxes} mode="internal" />
+        <CatalogGrid items={items.filter(i => i.type !== 'Celebration Hampers')} giftBoxes={giftBoxes} mode="internal" />
+      )}
+
+      {tab === 'hampers' && (
+        <HamperBuilder items={items} setItems={setItems} />
       )}
 
       {tab === 'items' && (
@@ -357,7 +363,7 @@ function InventoryModule({ items, setItems, giftBoxes, setGiftBoxes }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {items.map(item => (
+                {items.filter(item => item.type !== 'Celebration Hampers').map(item => (
                   <tr key={item.id} className="hover:bg-gray-50 transition">
                     <td className="p-4 flex items-center gap-4">
                       {item.image ? <img src={item.image} className="w-12 h-12 object-cover rounded-md border border-gray-200" /> : <div className="w-12 h-12 bg-gray-100 rounded-md"></div>}
