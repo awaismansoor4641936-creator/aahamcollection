@@ -3,20 +3,30 @@ import { Icon, calculateBoxTotals } from './utils';
 
 export default function CatalogGrid({ items, giftBoxes, mode }) {
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
   const catalogRef = useRef();
 
   const exportPDF = () => {
+    setIsExporting(true);
     const filename = mode === 'internal' 
       ? `Visual_Inventory_${new Date().toLocaleDateString().replace(/\//g, '-')}.pdf` 
       : `AAHAM_Catalog_${new Date().toLocaleDateString().replace(/\//g, '-')}.pdf`;
     
-    window.html2pdf().set({
-      margin: 0.5, 
-      filename: filename, 
-      image: { type: 'jpeg', quality: 0.95 }, 
-      html2canvas: { scale: 1.5, useCORS: true }, 
-      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-    }).from(catalogRef.current).save();
+    setTimeout(() => {
+      window.html2pdf().set({
+        margin: 0.5, 
+        filename: filename, 
+        image: { type: 'jpeg', quality: 0.85 }, 
+        html2canvas: { scale: 1.2, useCORS: true, logging: false }, 
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+      }).from(catalogRef.current).save().then(() => {
+        setIsExporting(false);
+      }).catch(err => {
+        console.error("PDF Export Error: ", err);
+        alert("Failed to generate PDF. The catalog might be too large or contain restricted images.");
+        setIsExporting(false);
+      });
+    }, 100);
   };
 
   const itemsByType = items.reduce((acc, item) => {
@@ -29,8 +39,16 @@ export default function CatalogGrid({ items, giftBoxes, mode }) {
   return (
     <div className="fade-in space-y-8">
       <div className="flex justify-end">
-        <button onClick={exportPDF} className="flex items-center gap-2 bg-charcoal text-white px-5 py-2.5 rounded hover:bg-black transition text-sm tracking-wider uppercase font-medium shadow-lg">
-          <Icon name="Download" /> {mode === 'internal' ? 'Download Visual Inventory PDF' : 'Download Customer Catalog PDF'}
+        <button 
+          onClick={exportPDF} 
+          disabled={isExporting}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded transition text-sm tracking-wider uppercase font-medium shadow-lg ${isExporting ? 'bg-gray-400 text-gray-700 cursor-not-allowed' : 'bg-charcoal text-white hover:bg-black'}`}
+        >
+          {isExporting ? (
+            <>Generating PDF... Please Wait</>
+          ) : (
+            <><Icon name="Download" /> {mode === 'internal' ? 'Download Visual Inventory PDF' : 'Download Customer Catalog PDF'}</>
+          )}
         </button>
       </div>
 
