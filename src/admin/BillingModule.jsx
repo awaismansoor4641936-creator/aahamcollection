@@ -24,6 +24,7 @@ export default function BillingModule({ logoData, setLogoData }) {
   const [itemSale, setItemSale] = useState('');
   
   const [showPreview, setShowPreview] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const slipARef = useRef();
   const slipBRef = useRef();
   const summaryRef = useRef();
@@ -188,6 +189,7 @@ export default function BillingModule({ logoData, setLogoData }) {
   };
 
   const downloadPDF = (type) => {
+    setIsExporting(true);
     const targetRef = type === 'customer' ? slipARef.current : type === 'admin' ? slipBRef.current : summaryRef.current;
     let filename = '';
     
@@ -199,13 +201,21 @@ export default function BillingModule({ logoData, setLogoData }) {
         : `Admin_Record_${customerName || 'Walk-in'}.pdf`;
     }
 
-    window.html2pdf().set({
-      margin: 0.5, 
-      filename: filename, 
-      image: { type: 'jpeg', quality: 0.98 }, 
-      html2canvas: { scale: 2, useCORS: true }, 
-      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-    }).from(targetRef).save();
+    setTimeout(() => {
+      window.html2pdf().set({
+        margin: 0.5, 
+        filename: filename, 
+        image: { type: 'jpeg', quality: 0.85 }, 
+        html2canvas: { scale: 1.5, useCORS: true, logging: false }, 
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+      }).from(targetRef).save().then(() => {
+        setIsExporting(false);
+      }).catch(err => {
+        console.error("PDF Export Error: ", err);
+        alert("Failed to generate PDF.");
+        setIsExporting(false);
+      });
+    }, 100);
   };
 
   const monthlyOrders = useMemo(() => {
@@ -227,11 +237,11 @@ export default function BillingModule({ logoData, setLogoData }) {
             <Icon name="ArrowLeft" /> Back
           </button>
           <div className="flex gap-4">
-            <button onClick={() => downloadPDF('customer')} className="bg-charcoal text-white px-5 py-2.5 rounded hover:bg-black transition text-sm tracking-wider uppercase shadow-md flex items-center gap-2">
-              <Icon name="Download" /> Download Customer Bill
+            <button disabled={isExporting} onClick={() => downloadPDF('customer')} className={`px-5 py-2.5 rounded transition text-sm tracking-wider uppercase shadow-md flex items-center gap-2 ${isExporting ? 'bg-gray-400 text-gray-700 cursor-not-allowed' : 'bg-charcoal text-white hover:bg-black'}`}>
+              <Icon name="Download" /> {isExporting ? 'Wait...' : 'Download Customer Bill'}
             </button>
-            <button onClick={() => downloadPDF('admin')} className="bg-gold-500 text-charcoal px-5 py-2.5 rounded hover:bg-gold-600 transition text-sm tracking-wider uppercase font-bold shadow-md flex items-center gap-2">
-              <Icon name="Download" /> Download Admin Bill
+            <button disabled={isExporting} onClick={() => downloadPDF('admin')} className={`px-5 py-2.5 rounded transition text-sm tracking-wider uppercase font-bold shadow-md flex items-center gap-2 ${isExporting ? 'bg-gray-400 text-gray-700 cursor-not-allowed' : 'bg-gold-500 text-charcoal hover:bg-gold-600'}`}>
+              <Icon name="Download" /> {isExporting ? 'Wait...' : 'Download Admin Bill'}
             </button>
           </div>
         </div>
@@ -268,11 +278,26 @@ export default function BillingModule({ logoData, setLogoData }) {
                   ))}
                 </tbody>
               </table>
-              <div className="w-1/2 ml-auto mt-8">
-                <div className="flex justify-between text-sm mb-2 text-gray-500"><span>Items Subtotal</span><span>Rs. {subtotal.toFixed(2)}</span></div>
-                {parseFloat(delivery) > 0 && <div className="flex justify-between text-sm mb-2 text-gray-500"><span>Delivery Charges</span><span>+Rs. {parseFloat(delivery).toFixed(2)}</span></div>}
-                {parseFloat(discount) > 0 && <div className="flex justify-between text-sm mb-2 text-gray-500"><span>Discount</span><span>-Rs. {parseFloat(discount).toFixed(2)}</span></div>}
-                <div className="flex justify-between text-2xl font-serif border-t-2 border-charcoal pt-4 mt-2 text-charcoal"><span>Total Due</span><span>Rs. {grandTotal.toFixed(2)}</span></div>
+              <div className="flex justify-between mt-8">
+                <div className="w-1/2 pr-8">
+                  <div className="bg-gray-50 p-4 rounded border border-gray-100 text-xs text-gray-600">
+                    <h4 className="font-bold text-charcoal mb-2 uppercase tracking-wider text-[10px]">Online Payment Details</h4>
+                    <p className="mb-1"><span className="font-medium text-charcoal">Bank:</span> Mashreq Bank</p>
+                    <p className="mb-1"><span className="font-medium text-charcoal">Title:</span> Mussarat Jabeen</p>
+                    <p className="mb-1"><span className="font-medium text-charcoal">A/C No:</span> 089200056897</p>
+                    <p className="mb-2"><span className="font-medium text-charcoal">IBAN:</span> PK48MSHQ0000089200056897</p>
+                    <p className="pt-2 border-t border-gray-200 mt-2 font-medium text-charcoal">
+                      WhatsApp Receipt To: 03260627568
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="w-1/2 pl-8">
+                  <div className="flex justify-between text-sm mb-2 text-gray-500"><span>Items Subtotal</span><span>Rs. {subtotal.toFixed(2)}</span></div>
+                  {parseFloat(delivery) > 0 && <div className="flex justify-between text-sm mb-2 text-gray-500"><span>Delivery Charges</span><span>+Rs. {parseFloat(delivery).toFixed(2)}</span></div>}
+                  {parseFloat(discount) > 0 && <div className="flex justify-between text-sm mb-2 text-gray-500"><span>Discount</span><span>-Rs. {parseFloat(discount).toFixed(2)}</span></div>}
+                  <div className="flex justify-between text-2xl font-serif border-t-2 border-charcoal pt-4 mt-2 text-charcoal"><span>Total Due</span><span>Rs. {grandTotal.toFixed(2)}</span></div>
+                </div>
               </div>
               <div className="mt-24 text-center text-sm text-gray-500 tracking-wide border-t border-gray-200 pt-8 font-serif italic">
                 "Your happiness is our finest gem.<br/>Thank you for shopping with AAHAM Collection."
@@ -494,8 +519,8 @@ export default function BillingModule({ logoData, setLogoData }) {
                 className="border-b-2 border-charcoal py-2 text-xl font-serif outline-none bg-transparent"
               />
             </div>
-            <button onClick={() => downloadPDF('summary')} className="bg-charcoal text-white px-5 py-2.5 rounded hover:bg-black transition text-sm tracking-wider uppercase shadow-md flex items-center gap-2">
-              <Icon name="Download" /> Download Summary PDF
+            <button disabled={isExporting} onClick={() => downloadPDF('summary')} className={`px-5 py-2.5 rounded transition text-sm tracking-wider uppercase shadow-md flex items-center gap-2 ${isExporting ? 'bg-gray-400 text-gray-700 cursor-not-allowed' : 'bg-charcoal text-white hover:bg-black'}`}>
+              <Icon name="Download" /> {isExporting ? 'Generating...' : 'Download Summary PDF'}
             </button>
           </div>
 

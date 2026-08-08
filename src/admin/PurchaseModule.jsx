@@ -20,6 +20,7 @@ export default function PurchaseModule() {
   const [itemCost, setItemCost] = useState('');
   
   const [showPreview, setShowPreview] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const billRef = useRef();
   const summaryRef = useRef();
 
@@ -137,18 +138,27 @@ export default function PurchaseModule() {
   };
 
   const downloadPDF = (type = 'record') => {
+    setIsExporting(true);
     const targetRef = type === 'summary' ? summaryRef.current : billRef.current;
     const filename = type === 'summary'
       ? `Monthly_Purchase_Summary_${summaryMonth}.pdf`
       : `Purchase_Record_${new Date().toLocaleDateString().replace(/\//g, '-')}.pdf`;
       
-    window.html2pdf().set({
-      margin: 0.5, 
-      filename: filename, 
-      image: { type: 'jpeg', quality: 0.98 }, 
-      html2canvas: { scale: 2, useCORS: true }, 
-      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-    }).from(targetRef).save();
+    setTimeout(() => {
+      window.html2pdf().set({
+        margin: 0.5, 
+        filename: filename, 
+        image: { type: 'jpeg', quality: 0.85 }, 
+        html2canvas: { scale: 1.5, useCORS: true, logging: false }, 
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+      }).from(targetRef).save().then(() => {
+        setIsExporting(false);
+      }).catch(err => {
+        console.error("PDF Export Error: ", err);
+        alert("Failed to generate PDF.");
+        setIsExporting(false);
+      });
+    }, 100);
   };
 
   const monthlyPurchases = useMemo(() => {
@@ -176,8 +186,8 @@ export default function PurchaseModule() {
           <button onClick={() => setShowPreview(false)} className="text-gray-500 hover:text-charcoal flex items-center gap-2 font-medium">
             <Icon name="ArrowLeft" /> Back
           </button>
-          <button onClick={() => downloadPDF('record')} className="bg-charcoal text-white px-5 py-2.5 rounded hover:bg-black transition text-sm tracking-wider uppercase shadow-md flex items-center gap-2">
-            <Icon name="Download" /> Download PDF
+          <button disabled={isExporting} onClick={() => downloadPDF('record')} className={`px-5 py-2.5 rounded transition text-sm tracking-wider uppercase shadow-md flex items-center gap-2 ${isExporting ? 'bg-gray-400 text-gray-700 cursor-not-allowed' : 'bg-charcoal text-white hover:bg-black'}`}>
+            <Icon name="Download" /> {isExporting ? 'Wait...' : 'Download PDF'}
           </button>
         </div>
 
@@ -395,8 +405,8 @@ export default function PurchaseModule() {
                 className="border-b-2 border-charcoal py-2 text-xl font-serif outline-none bg-transparent"
               />
             </div>
-            <button onClick={() => downloadPDF('summary')} className="bg-charcoal text-white px-5 py-2.5 rounded hover:bg-black transition text-sm tracking-wider uppercase shadow-md flex items-center gap-2">
-              <Icon name="Download" /> Download Summary PDF
+            <button disabled={isExporting} onClick={() => downloadPDF('summary')} className={`px-5 py-2.5 rounded transition text-sm tracking-wider uppercase shadow-md flex items-center gap-2 ${isExporting ? 'bg-gray-400 text-gray-700 cursor-not-allowed' : 'bg-charcoal text-white hover:bg-black'}`}>
+              <Icon name="Download" /> {isExporting ? 'Generating...' : 'Download Summary PDF'}
             </button>
           </div>
 
