@@ -19,7 +19,7 @@ const ProductCard = ({ p, index, onClick }) => {
   return (
     <div className="product-card" style={{ animationDelay: `${index * 0.05}s` }} onClick={onClick}>
       <div className="product-image">
-        {p.originalPrice && p.originalPrice > salePrice && (
+        {Number(p.originalPrice) > 0 && Number(p.originalPrice) > salePrice && (
           <div className="discount-badge">
             <span className="discount-num">{Math.round(((p.originalPrice - salePrice) / p.originalPrice) * 100)}%</span>
             <span className="discount-off">OFF</span>
@@ -158,8 +158,9 @@ export default function Storefront() {
   const randomProducts = useMemo(() => {
     if (products.length === 0) return [];
 
+    const hampers = products.filter(p => p.type === 'Celebration Hampers');
     const boxes = products.filter(p => p.type === 'Customized Boxes');
-    const normalItems = products.filter(p => p.type !== 'Customized Boxes');
+    const normalItems = products.filter(p => p.type !== 'Customized Boxes' && p.type !== 'Celebration Hampers');
 
     const byType = {};
     normalItems.forEach(p => {
@@ -175,6 +176,11 @@ export default function Storefront() {
     const shuffledBoxes = [...boxes].sort(() => 0.5 - Math.random());
     const selectedBoxes = shuffledBoxes.slice(0, 4);
     selectedBoxes.forEach(b => { finalSelection.push(b); usedIds.add(b.id); });
+
+    // Pick 2 celebration hampers
+    const shuffledHampers = [...hampers].sort(() => 0.5 - Math.random());
+    const selectedHampers = shuffledHampers.slice(0, 2);
+    selectedHampers.forEach(h => { finalSelection.push(h); usedIds.add(h.id); });
 
     // Pick 1 from each category
     const selectedNormals = [];

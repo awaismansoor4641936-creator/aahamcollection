@@ -1,13 +1,23 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Icon, generateId } from './utils';
+import { supabase } from '../lib/supabase';
 
 export default function BillingModule({ logoData, setLogoData }) {
+  const [activeTab, setActiveTab] = useState('new'); // 'new', 'history', 'summary'
+  
+  // Database state
+  const [dbOrders, setDbOrders] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Form state
+  const [editingId, setEditingId] = useState(null);
   const [orderItems, setOrderItems] = useState([]);
   const [delivery, setDelivery] = useState('');
   const [discount, setDiscount] = useState('');
   const [targetTotal, setTargetTotal] = useState('');
   const [customerName, setCustomerName] = useState('');
   
+  // Item entry state
   const [itemName, setItemName] = useState('');
   const [itemQty, setItemQty] = useState(1);
   const [itemCost, setItemCost] = useState('');
@@ -16,6 +26,31 @@ export default function BillingModule({ logoData, setLogoData }) {
   const [showPreview, setShowPreview] = useState(false);
   const slipARef = useRef();
   const slipBRef = useRef();
+  const summaryRef = useRef();
+
+  // Summary state
+  const [summaryMonth, setSummaryMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+
+  useEffect(() => {
+    fetchOrders();
+    const channel = supabase.channel('billing-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        fetchOrders();
+      })
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, []);
+
+  const fetchOrders = async () => {
+    setIsLoading(true);
+    const { data, error } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
+    if (error) console.error(error);
+    else setDbOrders(data || []);
+    setIsLoading(false);
+  };
 
   const handleAddManualItem = (e) => {
     e.preventDefault();
@@ -86,16 +121,83 @@ export default function BillingModule({ logoData, setLogoData }) {
   const grandTotal = Math.max(0, subtotal + (parseFloat(delivery) || 0) - (parseFloat(discount) || 0));
   const totalProfit = originalSubtotal - totalCost - (parseFloat(discount) || 0);
 
-  const handlePreviewOrder = () => {
-    if(orderItems.length === 0) return alert('Cannot generate a bill for an empty order. Please add items first.');
+  const resetForm = () => {
+    setOrderItems([]);
+    setDelivery('');
+    setDiscount('');
+    setCustomerName('');
+    setEditingId(null);
+  };
+
+  const handleSaveOrder = async () => {
+    if(orderItems.length === 0) return alert('Cannot save an empty order.');
+    
+    const payload = {
+      customer_name: customerName || 'Walk-in',
+      items: orderItems,
+      delivery: parseFloat(delivery) || 0,
+      discount: parseFloat(discount) || 0,
+      subtotal,
+      grand_total: grandTotal,
+      total_profit: totalProfit,
+    };
+
+    if (editingId) {
+      const { error } = await supabase.from('orders').update(payload).eq('id', editingId);
+      if (error) alert('Error updating order: ' + error.message);
+      else {
+        alert('Order updated successfully!');
+        resetForm();
+        setActiveTab('history');
+      }
+    } else {
+      payload.order_id = `BILL-${generateId()}`;
+      const { error } = await supabase.from('orders').insert([payload]);
+      if (error) alert('Error saving order: ' + error.message);
+      else {
+        alert('Order saved successfully!');
+        resetForm();
+        setActiveTab('history');
+      }
+    }
+  };
+
+  const loadOrderIntoForm = (order) => {
+    setCustomerName(order.customer_name === 'Walk-in' ? '' : order.customer_name);
+    setOrderItems(order.items || []);
+    setDelivery(order.delivery === 0 ? '' : order.delivery);
+    setDiscount(order.discount === 0 ? '' : order.discount);
+    setEditingId(order.id);
+  };
+
+  const handleEditOrder = (order) => {
+    loadOrderIntoForm(order);
+    setActiveTab('new');
+  };
+
+  const handlePreviewFromHistory = (order) => {
+    loadOrderIntoForm(order);
     setShowPreview(true);
   };
 
+  const handleDeleteOrder = async (id) => {
+    if (window.confirm("Are you sure you want to delete this order record? This cannot be undone.")) {
+      const { error } = await supabase.from('orders').delete().eq('id', id);
+      if (error) alert("Error deleting order.");
+    }
+  };
+
   const downloadPDF = (type) => {
-    const targetRef = type === 'customer' ? slipARef.current : slipBRef.current;
-    const filename = type === 'customer' 
-      ? `Customer_Bill_${customerName || 'Walk-in'}.pdf` 
-      : `Admin_Record_${customerName || 'Walk-in'}.pdf`;
+    const targetRef = type === 'customer' ? slipARef.current : type === 'admin' ? slipBRef.current : summaryRef.current;
+    let filename = '';
+    
+    if (type === 'summary') {
+      filename = `Monthly_Sales_Summary_${summaryMonth}.pdf`;
+    } else {
+      filename = type === 'customer' 
+        ? `Customer_Bill_${customerName || 'Walk-in'}.pdf` 
+        : `Admin_Record_${customerName || 'Walk-in'}.pdf`;
+    }
 
     window.html2pdf().set({
       margin: 0.5, 
@@ -106,12 +208,23 @@ export default function BillingModule({ logoData, setLogoData }) {
     }).from(targetRef).save();
   };
 
-  if (showPreview) {
+  const monthlyOrders = useMemo(() => {
+    return dbOrders.filter(order => {
+      const orderDate = new Date(order.created_at);
+      const orderMonthStr = `${orderDate.getFullYear()}-${String(orderDate.getMonth() + 1).padStart(2, '0')}`;
+      return orderMonthStr === summaryMonth;
+    });
+  }, [dbOrders, summaryMonth]);
+
+  const monthlySalesTotal = monthlyOrders.reduce((sum, o) => sum + Number(o.grand_total), 0);
+  const monthlyProfitTotal = monthlyOrders.reduce((sum, o) => sum + Number(o.total_profit), 0);
+
+  if (showPreview && activeTab !== 'summary') {
     return (
       <div className="fade-in max-w-4xl mx-auto pb-20">
         <div className="flex justify-between items-center mb-8 sticky top-0 bg-[#fafafa] py-6 z-50 border-b border-gray-200 shadow-sm px-4 -mx-4">
           <button onClick={() => setShowPreview(false)} className="text-gray-500 hover:text-charcoal flex items-center gap-2 font-medium">
-            <Icon name="ArrowLeft" /> Back to Order Entry
+            <Icon name="ArrowLeft" /> Back
           </button>
           <div className="flex gap-4">
             <button onClick={() => downloadPDF('customer')} className="bg-charcoal text-white px-5 py-2.5 rounded hover:bg-black transition text-sm tracking-wider uppercase shadow-md flex items-center gap-2">
@@ -215,118 +328,229 @@ export default function BillingModule({ logoData, setLogoData }) {
 
   return (
     <div className="fade-in max-w-6xl mx-auto">
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex justify-between items-center mb-8 flex-col sm:flex-row gap-4">
         <h2 className="text-3xl font-serif text-charcoal tracking-wide">Order & Billing</h2>
-        <div className="bg-white p-3 rounded shadow-md border border-gray-200 flex items-center gap-4">
-          <div className="text-right">
-            <div className="text-[11px] uppercase tracking-widest font-bold text-gray-500">Store Logo</div>
-            <div className="text-[10px] text-gray-400">Prints on all invoices</div>
-          </div>
-          <div className="flex items-center gap-2">
-            <input type="file" accept="image/*" onChange={(e) => {
-              const file = e.target.files[0];
-              if(file) {
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                  setLogoData(reader.result);
-                  localStorage.setItem('jwl_logo', reader.result);
-                };
-                reader.readAsDataURL(file);
-              }
-            }} className="text-[10px] w-48" />
-            {logoData && <button onClick={() => {setLogoData(null); localStorage.removeItem('jwl_logo');}} className="text-[10px] uppercase text-red-500 font-bold tracking-wider hover:underline">Remove</button>}
-          </div>
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 relative">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100">
-            <h3 className="font-serif text-lg mb-4 text-gold-600">Add Item to Order</h3>
-            <form onSubmit={handleAddManualItem} className="grid grid-cols-1 md:grid-cols-6 gap-4">
-              <div className="md:col-span-3"><input required placeholder="Item / Box Name" value={itemName} onChange={e=>setItemName(e.target.value)} className="w-full border-b border-gray-300 py-2 focus:border-gold-500 outline-none bg-transparent text-sm" /></div>
-              <div className="md:col-span-1"><input required type="number" min="1" placeholder="Qty" value={itemQty} onChange={e=>setItemQty(e.target.value)} className="w-full border-b border-gray-300 py-2 focus:border-gold-500 outline-none bg-transparent text-sm" /></div>
-              <div className="md:col-span-1"><input type="number" step="0.01" placeholder="Cost (Rs)" value={itemCost} onChange={e=>setItemCost(e.target.value)} className="w-full border-b border-gray-300 py-2 focus:border-gold-500 outline-none bg-transparent text-sm" /></div>
-              <div className="md:col-span-1"><input required type="number" step="0.01" placeholder="Sale (Rs)" value={itemSale} onChange={e=>setItemSale(e.target.value)} className="w-full border-b border-gray-300 py-2 focus:border-gold-500 outline-none bg-transparent text-sm" /></div>
-              <div className="md:col-span-6 flex justify-end">
-                <button type="submit" className="bg-gray-100 text-charcoal px-6 py-2 rounded hover:bg-gold-100 transition text-sm tracking-widest uppercase font-medium border border-gray-200 shadow-sm">+ Add Line Item</button>
-              </div>
-            </form>
-          </div>
-
-          <div className="bg-white p-8 rounded-xl shadow-md border border-gray-100">
-            <div className="mb-8">
-              <input placeholder="Customer Name" value={customerName} onChange={e=>setCustomerName(e.target.value)} className="w-full md:w-1/2 border-b-2 border-gray-200 py-2 focus:border-gold-500 transition outline-none font-serif text-xl" />
-            </div>
-
-            <table className="w-full text-left">
-              <thead className="border-b-2 border-gray-100">
-                <tr className="text-xs uppercase tracking-widest text-gray-400">
-                  <th className="pb-3 font-medium">Item</th><th className="pb-3 font-medium text-center">Qty</th><th className="pb-3 font-medium text-right">Price</th><th className="pb-3 font-medium text-right">Total</th><th className="pb-3"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {orderItems.map(o => (
-                  <tr key={o.id} className="group">
-                    <td className="py-4 font-medium text-charcoal">{o.name}</td>
-                    <td className="py-4 text-center flex justify-center items-center gap-3">
-                      <button onClick={()=>updateQty(o.id, -1)} className="w-6 h-6 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 flex items-center justify-center">-</button>
-                      <span className="w-4 font-medium">{o.qty}</span>
-                      <button onClick={()=>updateQty(o.id, 1)} className="w-6 h-6 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 flex items-center justify-center">+</button>
-                    </td>
-                    <td className="py-4 text-right text-gray-500">Rs. {o.salePrice.toFixed(2)}</td>
-                    <td className="py-4 text-right font-medium text-charcoal">Rs. {(o.salePrice * o.qty).toFixed(2)}</td>
-                    <td className="py-4 text-right"><button onClick={()=>removeOrderItem(o.id)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"><Icon name="Trash" /></button></td>
-                  </tr>
-                ))}
-                {orderItems.length === 0 && <tr><td colSpan="5" className="py-12 text-center text-gray-400 font-serif italic">No items in the current order. Add items above.</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="bg-charcoal text-white p-8 rounded-xl shadow-md flex flex-col h-fit sticky top-8">
-          <h3 className="font-serif text-2xl text-gold-400 mb-6 border-b border-gray-700 pb-4">Order Summary</h3>
-          <div className="space-y-4 text-sm mb-6 flex-1">
-            <div className="flex justify-between text-gray-300"><span>Items Subtotal</span> <span>Rs. {subtotal.toFixed(2)}</span></div>
-            
-            <div className="flex justify-between items-center text-gray-300">
-              <span>Delivery Charges</span>
-              <div className="flex items-center gap-1 border-b border-gray-600 focus-within:border-gold-400 transition pb-1">
-                <span className="text-gray-500">Rs.</span>
-                <input type="number" min="0" value={delivery} onChange={e=>setDelivery(e.target.value)} className="w-20 bg-transparent text-right outline-none text-white font-medium" />
-              </div>
-            </div>
-
-            <div className="flex justify-between items-center text-gray-300">
-              <span>Discount</span>
-              <div className="flex items-center gap-1 border-b border-gray-600 focus-within:border-gold-400 transition pb-1">
-                <span className="text-gray-500">Rs.</span>
-                <input type="number" min="0" value={discount} onChange={e=>setDiscount(e.target.value)} className="w-20 bg-transparent text-right outline-none text-white font-medium" />
-              </div>
-            </div>
-          </div>
-          <div className="border-t border-gray-700 pt-6 mb-8">
-            <div className="flex justify-between items-end">
-              <span className="text-gray-400 uppercase tracking-wider text-xs">Grand Total</span>
-              <span className="font-serif text-4xl text-gold-400">Rs. {grandTotal.toFixed(2)}</span>
-            </div>
-          </div>
-
-          <div className="bg-gray-800 p-4 rounded-lg mb-8 border border-gray-700 shadow-inner">
-            <div className="text-xs text-gray-400 uppercase tracking-widest mb-3">Target Price Adjustment</div>
-            <div className="flex gap-2">
-              <input type="number" placeholder="Target Total" value={targetTotal} onChange={e=>setTargetTotal(e.target.value)} className="flex-1 bg-gray-900 border border-gray-600 rounded px-3 py-2 text-sm text-white outline-none focus:border-gold-500" />
-              <button onClick={handleAutoAdjust} className="bg-gold-500 text-charcoal px-4 py-2 rounded text-xs font-bold uppercase tracking-wider hover:bg-gold-400 transition shadow-md">Adjust</button>
-            </div>
-            <p className="text-[10px] text-gray-500 mt-2 leading-tight">Silently recalculates item prices so the final bill matches your target amount perfectly.</p>
-          </div>
-
-          <button onClick={handlePreviewOrder} className={`w-full font-bold py-4 rounded transition tracking-widest uppercase text-sm shadow-lg ${orderItems.length > 0 ? 'bg-gold-500 text-charcoal hover:bg-gold-400 shadow-gold-500/20' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>
-            Preview Order
+        
+        <div className="flex bg-gray-100 p-1 rounded-lg">
+          <button onClick={() => { setActiveTab('new'); if(!editingId) resetForm(); }} className={`px-4 py-2 rounded text-sm font-medium transition ${activeTab === 'new' ? 'bg-white shadow-sm text-charcoal' : 'text-gray-500 hover:text-charcoal'}`}>
+            {editingId ? 'Edit Order' : 'New Order'}
+          </button>
+          <button onClick={() => setActiveTab('history')} className={`px-4 py-2 rounded text-sm font-medium transition ${activeTab === 'history' ? 'bg-white shadow-sm text-charcoal' : 'text-gray-500 hover:text-charcoal'}`}>
+            Bill History
+          </button>
+          <button onClick={() => setActiveTab('summary')} className={`px-4 py-2 rounded text-sm font-medium transition ${activeTab === 'summary' ? 'bg-white shadow-sm text-charcoal' : 'text-gray-500 hover:text-charcoal'}`}>
+            Monthly Summary
           </button>
         </div>
       </div>
+      
+      {activeTab === 'new' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 relative fade-in">
+          <div className="lg:col-span-2 space-y-6">
+            <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100">
+              <h3 className="font-serif text-lg mb-4 text-gold-600">Add Item to Order</h3>
+              <form onSubmit={handleAddManualItem} className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                <div className="md:col-span-3"><input required placeholder="Item / Box Name" value={itemName} onChange={e=>setItemName(e.target.value)} className="w-full border-b border-gray-300 py-2 focus:border-gold-500 outline-none bg-transparent text-sm" /></div>
+                <div className="md:col-span-1"><input required type="number" min="1" placeholder="Qty" value={itemQty} onChange={e=>setItemQty(e.target.value)} className="w-full border-b border-gray-300 py-2 focus:border-gold-500 outline-none bg-transparent text-sm" /></div>
+                <div className="md:col-span-1"><input type="number" step="0.01" placeholder="Cost (Rs)" value={itemCost} onChange={e=>setItemCost(e.target.value)} className="w-full border-b border-gray-300 py-2 focus:border-gold-500 outline-none bg-transparent text-sm" /></div>
+                <div className="md:col-span-1"><input required type="number" step="0.01" placeholder="Sale (Rs)" value={itemSale} onChange={e=>setItemSale(e.target.value)} className="w-full border-b border-gray-300 py-2 focus:border-gold-500 outline-none bg-transparent text-sm" /></div>
+                <div className="md:col-span-6 flex justify-end">
+                  <button type="submit" className="bg-gray-100 text-charcoal px-6 py-2 rounded hover:bg-gold-100 transition text-sm tracking-widest uppercase font-medium border border-gray-200 shadow-sm">+ Add Line Item</button>
+                </div>
+              </form>
+            </div>
+
+            <div className="bg-white p-8 rounded-xl shadow-md border border-gray-100">
+              <div className="mb-8 flex justify-between items-center">
+                <input placeholder="Customer Name" value={customerName} onChange={e=>setCustomerName(e.target.value)} className="w-full md:w-1/2 border-b-2 border-gray-200 py-2 focus:border-gold-500 transition outline-none font-serif text-xl" />
+                {editingId && (
+                  <div className="bg-blue-100 text-blue-700 text-xs font-bold px-3 py-1 rounded uppercase tracking-widest">Editing Mode</div>
+                )}
+              </div>
+
+              <table className="w-full text-left">
+                <thead className="border-b-2 border-gray-100">
+                  <tr className="text-xs uppercase tracking-widest text-gray-400">
+                    <th className="pb-3 font-medium">Item</th><th className="pb-3 font-medium text-center">Qty</th><th className="pb-3 font-medium text-right">Price</th><th className="pb-3 font-medium text-right">Total</th><th className="pb-3"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {orderItems.map(o => (
+                    <tr key={o.id} className="group">
+                      <td className="py-4 font-medium text-charcoal">{o.name}</td>
+                      <td className="py-4 text-center flex justify-center items-center gap-3">
+                        <button onClick={()=>updateQty(o.id, -1)} className="w-6 h-6 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 flex items-center justify-center">-</button>
+                        <span className="w-4 font-medium">{o.qty}</span>
+                        <button onClick={()=>updateQty(o.id, 1)} className="w-6 h-6 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 flex items-center justify-center">+</button>
+                      </td>
+                      <td className="py-4 text-right text-gray-500">Rs. {o.salePrice.toFixed(2)}</td>
+                      <td className="py-4 text-right font-medium text-charcoal">Rs. {(o.salePrice * o.qty).toFixed(2)}</td>
+                      <td className="py-4 text-right"><button onClick={()=>removeOrderItem(o.id)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"><Icon name="Trash" /></button></td>
+                    </tr>
+                  ))}
+                  {orderItems.length === 0 && <tr><td colSpan="5" className="py-12 text-center text-gray-400 font-serif italic">No items in the current order. Add items above.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="bg-charcoal text-white p-8 rounded-xl shadow-md flex flex-col h-fit sticky top-8">
+            <h3 className="font-serif text-2xl text-gold-400 mb-6 border-b border-gray-700 pb-4">Order Summary</h3>
+            <div className="space-y-4 text-sm mb-6 flex-1">
+              <div className="flex justify-between text-gray-300"><span>Items Subtotal</span> <span>Rs. {subtotal.toFixed(2)}</span></div>
+              
+              <div className="flex justify-between items-center text-gray-300">
+                <span>Delivery Charges</span>
+                <div className="flex items-center gap-1 border-b border-gray-600 focus-within:border-gold-400 transition pb-1">
+                  <span className="text-gray-500">Rs.</span>
+                  <input type="number" min="0" value={delivery} onChange={e=>setDelivery(e.target.value)} className="w-20 bg-transparent text-right outline-none text-white font-medium" />
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center text-gray-300">
+                <span>Discount</span>
+                <div className="flex items-center gap-1 border-b border-gray-600 focus-within:border-gold-400 transition pb-1">
+                  <span className="text-gray-500">Rs.</span>
+                  <input type="number" min="0" value={discount} onChange={e=>setDiscount(e.target.value)} className="w-20 bg-transparent text-right outline-none text-white font-medium" />
+                </div>
+              </div>
+            </div>
+            <div className="border-t border-gray-700 pt-6 mb-8">
+              <div className="flex justify-between items-end">
+                <span className="text-gray-400 uppercase tracking-wider text-xs">Grand Total</span>
+                <span className="font-serif text-4xl text-gold-400">Rs. {grandTotal.toFixed(2)}</span>
+              </div>
+            </div>
+
+            <div className="bg-gray-800 p-4 rounded-lg mb-8 border border-gray-700 shadow-inner">
+              <div className="text-xs text-gray-400 uppercase tracking-widest mb-3">Target Price Adjustment</div>
+              <div className="flex gap-2">
+                <input type="number" placeholder="Target Total" value={targetTotal} onChange={e=>setTargetTotal(e.target.value)} className="flex-1 bg-gray-900 border border-gray-600 rounded px-3 py-2 text-sm text-white outline-none focus:border-gold-500" />
+                <button onClick={handleAutoAdjust} className="bg-gold-500 text-charcoal px-4 py-2 rounded text-xs font-bold uppercase tracking-wider hover:bg-gold-400 transition shadow-md">Adjust</button>
+              </div>
+              <p className="text-[10px] text-gray-500 mt-2 leading-tight">Silently recalculates item prices so the final bill matches your target amount perfectly.</p>
+            </div>
+
+            <button onClick={handleSaveOrder} className={`w-full font-bold py-4 rounded transition tracking-widest uppercase text-sm shadow-lg mb-3 ${orderItems.length > 0 ? 'bg-gold-500 text-charcoal hover:bg-gold-400 shadow-gold-500/20' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>
+              {editingId ? 'Update & Save Order' : 'Save Order'}
+            </button>
+            <button onClick={() => setShowPreview(true)} className={`w-full font-bold py-3 rounded transition tracking-widest uppercase text-xs border ${orderItems.length > 0 ? 'border-gray-500 text-white hover:bg-gray-700' : 'border-gray-700 text-gray-500 cursor-not-allowed'}`}>
+              Preview Current Bill
+            </button>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'history' && (
+        <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100 fade-in">
+          {isLoading ? (
+            <div className="p-12 text-center text-gray-500">Loading history...</div>
+          ) : (
+            <table className="w-full text-left">
+              <thead className="bg-gray-50 text-xs uppercase tracking-widest text-gray-500 border-b border-gray-200">
+                <tr>
+                  <th className="p-4 font-medium">Date</th>
+                  <th className="p-4 font-medium">Order ID</th>
+                  <th className="p-4 font-medium">Customer</th>
+                  <th className="p-4 font-medium text-right">Grand Total</th>
+                  <th className="p-4 font-medium text-right">Profit</th>
+                  <th className="p-4 font-medium text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50 text-sm">
+                {dbOrders.length === 0 ? (
+                  <tr><td colSpan="6" className="p-8 text-center text-gray-400 italic font-serif">No saved orders found.</td></tr>
+                ) : (
+                  dbOrders.map(order => (
+                    <tr key={order.id} className="hover:bg-gray-50 transition">
+                      <td className="p-4 text-gray-500">{new Date(order.created_at).toLocaleDateString()}</td>
+                      <td className="p-4 text-gray-500 text-xs font-mono">{order.order_id}</td>
+                      <td className="p-4 font-medium text-charcoal">{order.customer_name}</td>
+                      <td className="p-4 text-right font-medium">Rs. {Number(order.grand_total).toFixed(2)}</td>
+                      <td className="p-4 text-right text-green-600 font-medium">+Rs. {Number(order.total_profit).toFixed(2)}</td>
+                      <td className="p-4 text-right space-x-2">
+                        <button onClick={() => handlePreviewFromHistory(order)} className="text-gray-500 hover:text-charcoal px-2 py-1 rounded border border-gray-200 text-xs uppercase tracking-wider bg-white shadow-sm">View</button>
+                        <button onClick={() => handleEditOrder(order)} className="text-blue-500 hover:text-blue-700 px-2 py-1 rounded border border-blue-200 text-xs uppercase tracking-wider bg-blue-50 shadow-sm">Edit</button>
+                        <button onClick={() => handleDeleteOrder(order.id)} className="text-red-500 hover:text-red-700 px-2 py-1 rounded border border-red-200 text-xs uppercase tracking-wider bg-red-50 shadow-sm">Delete</button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'summary' && (
+        <div className="fade-in space-y-6">
+          <div className="flex justify-between items-end bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <div>
+              <label className="block text-xs uppercase tracking-widest text-gray-500 mb-2">Select Month</label>
+              <input 
+                type="month" 
+                value={summaryMonth} 
+                onChange={e => setSummaryMonth(e.target.value)} 
+                className="border-b-2 border-charcoal py-2 text-xl font-serif outline-none bg-transparent"
+              />
+            </div>
+            <button onClick={() => downloadPDF('summary')} className="bg-charcoal text-white px-5 py-2.5 rounded hover:bg-black transition text-sm tracking-wider uppercase shadow-md flex items-center gap-2">
+              <Icon name="Download" /> Download Summary PDF
+            </button>
+          </div>
+
+          <div ref={summaryRef} className="bg-white p-12 shadow-md border border-gray-200 relative">
+            <div className="text-center mb-10">
+              <h1 className="text-4xl font-serif tracking-widest text-charcoal mb-2">MONTHLY SALES SUMMARY</h1>
+              <p className="text-sm uppercase tracking-widest text-gray-500 border-t border-gray-200 pt-3 inline-block">
+                For the period: {new Date(summaryMonth + '-01').toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+              </p>
+            </div>
+
+            <table className="w-full text-left mb-10 border-collapse">
+              <thead className="border-b-2 border-charcoal">
+                <tr className="text-xs uppercase tracking-widest text-gray-500">
+                  <th className="pb-3 font-medium">Date</th>
+                  <th className="pb-3 font-medium">Order No.</th>
+                  <th className="pb-3 font-medium">Customer Name</th>
+                  <th className="pb-3 font-medium text-right">Order Price</th>
+                  <th className="pb-3 font-medium text-right text-green-600">Profit Margin</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-sm">
+                {monthlyOrders.length === 0 ? (
+                  <tr><td colSpan="5" className="py-8 text-center text-gray-400 italic font-serif">No sales recorded for this month.</td></tr>
+                ) : (
+                  monthlyOrders.map(order => (
+                    <tr key={order.id}>
+                      <td className="py-3 text-gray-500">{new Date(order.created_at).toLocaleDateString()}</td>
+                      <td className="py-3 font-mono text-xs text-gray-500">{order.order_id}</td>
+                      <td className="py-3 font-serif text-charcoal">{order.customer_name}</td>
+                      <td className="py-3 text-right font-medium">Rs. {Number(order.grand_total).toFixed(2)}</td>
+                      <td className="py-3 text-right text-green-600 font-medium">+Rs. {Number(order.total_profit).toFixed(2)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+
+            <div className="w-full md:w-1/2 ml-auto mt-8 border-t-2 border-charcoal pt-6">
+              <div className="flex justify-between text-xl font-serif mb-4 text-charcoal">
+                <span>Total Monthly Sales</span>
+                <span>Rs. {monthlySalesTotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-2xl font-serif text-green-600 bg-green-50 p-4 rounded border border-green-100">
+                <span>Total Monthly Profit</span>
+                <span>Rs. {monthlyProfitTotal.toFixed(2)}</span>
+              </div>
+            </div>
+            
+            <div className="mt-16 text-center text-xs text-gray-400 tracking-wide border-t border-gray-200 pt-6">
+              Generated by AAHAM Collection Admin System
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

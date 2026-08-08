@@ -56,6 +56,12 @@ export default function CatalogGrid({ items, giftBoxes, mode }) {
                     {typeItems.map(prod => (
                       <div key={prod.id} onClick={() => setSelectedProduct(prod)} className="cursor-pointer group border border-transparent hover:border-gray-100 rounded-lg p-4 transition bg-white text-center">
                         <div className="aspect-[4/5] bg-gray-50 mb-6 overflow-hidden relative rounded shadow-sm">
+                          {mode !== 'internal' && Number(prod.originalPrice) > 0 && Number(prod.originalPrice) > Number(prod.salePrice) && (
+                            <div className="absolute top-2 left-2 bg-red-600 text-white flex flex-col items-center justify-center rounded-sm z-10 px-1.5 py-1" style={{ minWidth: '40px' }}>
+                              <span className="font-bold text-xs leading-none">{Math.round(((prod.originalPrice - prod.salePrice) / prod.originalPrice) * 100)}%</span>
+                              <span className="text-[9px] font-bold uppercase tracking-widest leading-none mt-0.5">OFF</span>
+                            </div>
+                          )}
                           {prod.image ? (
                             <img src={prod.image} className="w-full h-full object-cover" />
                           ) : (
@@ -74,8 +80,19 @@ export default function CatalogGrid({ items, giftBoxes, mode }) {
                             <div className="flex justify-between"><span className="text-gray-500">Sale Price:</span> <span className="font-bold text-charcoal">Rs. {prod.salePrice.toFixed(2)}</span></div>
                             <div className="flex justify-between mt-2 pt-2 border-t border-gray-100"><span className="text-gray-500">Profit:</span> <span className="font-bold text-green-600">+Rs. {(prod.salePrice - prod.costPrice).toFixed(2)}</span></div>
                           </div>
+                        ) : prod.type === 'Celebration Hampers' ? (
+                          <p className="text-gold-600 font-medium tracking-wider text-lg italic mt-2">Custom Pricing</p>
                         ) : (
-                          <p className="text-gold-600 font-medium tracking-wider text-lg">Rs. {prod.salePrice.toFixed(2)}</p>
+                          <div className="flex items-center justify-center gap-3 mt-2">
+                            {Number(prod.originalPrice) > 0 && Number(prod.originalPrice) > Number(prod.salePrice) ? (
+                              <>
+                                <span className="text-gray-400 text-sm line-through">Rs. {Number(prod.originalPrice).toFixed(2)}</span>
+                                <span className="text-gold-600 font-medium tracking-wider text-lg">Rs. {Number(prod.salePrice).toFixed(2)}</span>
+                              </>
+                            ) : (
+                              <span className="text-gold-600 font-medium tracking-wider text-lg">Rs. {Number(prod.salePrice).toFixed(2)}</span>
+                            )}
+                          </div>
                         )}
                       </div>
                     ))}
@@ -92,6 +109,12 @@ export default function CatalogGrid({ items, giftBoxes, mode }) {
                       return (
                         <div key={box.id} onClick={() => setSelectedProduct(box)} className="cursor-pointer group border border-transparent hover:border-gray-100 rounded-lg p-4 transition bg-white text-center">
                           <div className="aspect-[4/5] bg-gray-50 mb-6 overflow-hidden relative rounded shadow-sm">
+                            {mode !== 'internal' && Number(box.originalPrice) > 0 && Number(box.originalPrice) > Number(totals.sale) && (
+                              <div className="absolute top-2 left-2 bg-red-600 text-white flex flex-col items-center justify-center rounded-sm z-10 px-1.5 py-1" style={{ minWidth: '40px' }}>
+                                <span className="font-bold text-xs leading-none">{Math.round(((box.originalPrice - totals.sale) / box.originalPrice) * 100)}%</span>
+                                <span className="text-[9px] font-bold uppercase tracking-widest leading-none mt-0.5">OFF</span>
+                              </div>
+                            )}
                             {box.image ? (
                               <img src={box.image} className="w-full h-full object-cover" />
                             ) : (
@@ -111,7 +134,16 @@ export default function CatalogGrid({ items, giftBoxes, mode }) {
                               <div className="flex justify-between mt-2 pt-2 border-t border-gray-100"><span className="text-gray-500">Profit:</span> <span className="font-bold text-green-600">+Rs. {totals.profit.toFixed(2)}</span></div>
                             </div>
                           ) : (
-                            <p className="text-gold-600 font-medium tracking-wider text-lg">Rs. {totals.sale.toFixed(2)}</p>
+                            <div className="flex items-center justify-center gap-3 mt-2">
+                              {Number(box.originalPrice) > 0 && Number(box.originalPrice) > Number(totals.sale) ? (
+                                <>
+                                  <span className="text-gray-400 text-sm line-through">Rs. {Number(box.originalPrice).toFixed(2)}</span>
+                                  <span className="text-gold-600 font-medium tracking-wider text-lg">Rs. {Number(totals.sale).toFixed(2)}</span>
+                                </>
+                              ) : (
+                                <span className="text-gold-600 font-medium tracking-wider text-lg">Rs. {Number(totals.sale).toFixed(2)}</span>
+                              )}
+                            </div>
                           )}
                         </div>
                       );
